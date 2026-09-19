@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Codenotch</title>
+        <item>
+            <title>1.15.0</title>
+            <pubDate>Wed, 09 Sep 2026 09:56:29 +0700</pubDate>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>1.15.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://hivinz.com/Codenotch.dmg" length="10871190" type="application/octet-stream" sparkle:edSignature="TyWqwHBi7woUt0utEdZ/zYQ7nNxbBZL/vUjc7RLdwORgX+HarP/u98WjDejCWSZc2oBV/rYNxNUaseX7TmvWAQ=="/>
+        </item>
+    </channel>
+</rss>
