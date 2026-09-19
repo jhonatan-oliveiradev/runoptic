@@ -1,10 +1,10 @@
 [package]
-name = "codenotch"
-version = "1.15.0"
+name = "runoptic"
+version = "0.1.0"
 edition = "2021"
-description = "Codenotch for Windows — usage notch for Claude, Codex, Cursor and Antigravity"
+description = "RunOptic — local-first observability for AI coding agents and providers"
 license = "MIT"
-repository = "https://github.com/Im-Midi/codenotch-windows"
+repository = "https://github.com/jhonatan-oliveiradev/runoptic"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
