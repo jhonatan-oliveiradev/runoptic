@@ -31,7 +31,7 @@ fn open_now(app: &AppHandle) {
     // The Mac's window: 680 × 520, centred, not resizable. `shadow` on an undecorated window is what
     // gives it Windows 11's rounded corners.
     let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
-        .title("Codenotch Settings")
+        .title("RunOptic Settings")
         .inner_size(680.0, 520.0)
         .resizable(false)
         .maximizable(false)
@@ -77,7 +77,7 @@ pub fn quit_app(app: AppHandle) {
 #[tauri::command]
 pub fn open_author_page() {
     let mut cmd = std::process::Command::new("cmd");
-    cmd.args(["/C", "start", "", "https://x.com/hivinz_"]);
+    cmd.args(["/C", "start", "", "https://github.com/jhonatan-oliveiradev/runoptic"]);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
