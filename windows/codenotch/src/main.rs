@@ -1434,7 +1434,7 @@ fn ack_scan(app: &AppHandle) -> bool {
     }
     let maps = focus::proc_maps();
     let fg_name = maps.name.get(&fg).cloned().unwrap_or_default();
-    let fg_is_claude_desktop = fg_name.contains("claude") && !fg_name.contains("codenotch");
+    let fg_is_claude_desktop = fg_name.contains("claude") && !fg_name.contains("runoptic");
     let st = app.state::<AppState>();
     let mut store = st.store.lock().unwrap();
     store.ack_done(|s| {
@@ -1498,7 +1498,7 @@ fn main() {
                 let r = match args.get(2).map(|s| s.as_str()) {
                     Some("on") => autostart::enable(),
                     Some("off") => autostart::disable(),
-                    _ => Err("usage: codenotch.exe autostart on|off".into()),
+                    _ => Err("usage: runoptic.exe autostart on|off".into()),
                 };
                 report(r);
                 return;
@@ -1519,7 +1519,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // Opening Codenotch again while it runs brings Settings forward, as on the Mac: with the
+            // Opening RunOptic again while it runs brings Settings forward, as on the Mac: with the
             // tray icon hidden it is the way back. Logged too, for a rebuild that was not picked up.
             applog(&format!("single instance: another launch was refused; the running instance is build={BUILD} — quit it from the tray first if you just rebuilt"));
             settings_window::open(app);
@@ -1635,7 +1635,7 @@ fn main() {
                     broadcast(&sweeper);
                 }
             });
-            // Persist the config (codenotch-hook reads the port from it)
+            // Persist the config (runoptic-hook reads the port from it)
             {
                 let st = handle.state::<AppState>();
                 let c = st.cfg.lock().unwrap();
@@ -1644,7 +1644,7 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("Codenotch failed to start");
+        .expect("RunOptic failed to start");
 }
 
 #[cfg(test)]
