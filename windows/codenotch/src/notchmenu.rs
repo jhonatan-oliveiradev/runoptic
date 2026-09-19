@@ -1,4 +1,4 @@
-//! The notch's right-click menu, the Mac's Refresh now and Quit Codenotch. Windows adds the ring's
+//! The notch's right-click menu, the Mac's Refresh now and Quit RunOptic. Windows adds the ring's
 //! usage page: a left click used to open it, and a left click now refreshes the ring instead.
 
 use crate::i18n::tr;
