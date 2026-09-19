@@ -88,7 +88,7 @@ jobs:
           # so the report may reach either the redirected stdout or doctor.log.
           Start-Process -FilePath (Join-Path $dir 'runoptic.exe') -ArgumentList 'doctor' `
             -RedirectStandardOutput doctor.txt -Wait
-          $doctor = "$(Get-Content doctor.txt -Raw)$(Get-Content (Join-Path $env:APPDATA 'codenotch\doctor.log') -Raw -ErrorAction SilentlyContinue)"
+          $doctor = "$(Get-Content doctor.txt -Raw)$(Get-Content (Join-Path $env:APPDATA 'runoptic\doctor.log') -Raw -ErrorAction SilentlyContinue)"
           if ($doctor -notmatch 'RunOptic doctor') { throw "runoptic.exe doctor did not run: $doctor" }
           $doctor
           Start-Process -FilePath (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
