@@ -20,5 +20,5 @@ respectively, and are used here only to identify the product whose usage is disp
 they stay in a distributed build is the repository owner's call under each brand's guidelines;
 they can be swapped for generated glyphs without touching any code.
 
-**Overrides**: a file of the same name (`.svg` or `.png`) in `%APPDATA%\codenotch\glyphs\` takes
+**Overrides**: a file of the same name (`.svg` or `.png`) in `%APPDATA%\runoptic\glyphs\` takes
 precedence over the built-in mark; it is picked up after "Refresh usage now" in the tray menu.
