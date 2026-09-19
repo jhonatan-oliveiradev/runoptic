@@ -1,9 +1,9 @@
 [package]
-name = "codenotch-hook"
-version = "0.3.0"
+name = "runoptic-hook"
+version = "0.1.0"
 edition = "2021"
-description = "Codenotch hook launcher: report Claude Code hook events, auto-start main app"
+description = "RunOptic hook launcher: report Claude Code hook events and auto-start the main app"
 license = "MIT"
-repository = "https://github.com/Im-Midi/codenotch-windows"
+repository = "https://github.com/jhonatan-oliveiradev/runoptic"
 
 [dependencies]
