@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Codenotch notch & settings windows: allow core APIs (event.listen is required for state broadcasts), plus dragging and closing the frameless settings window",
+  "description": "RunOptic notch & settings windows: allow core APIs (event.listen is required for state broadcasts), plus dragging and closing the frameless settings window",
   "windows": [
     "notch",
     "settings"
