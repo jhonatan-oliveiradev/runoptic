@@ -1,4 +1,4 @@
-//! `codenotch.exe doctor deep`: deep diagnostics for finding "is it working?" signals.
+//! `runoptic.exe doctor deep`: deep diagnostics for finding "is it working?" signals.
 //! Prints only structure, times and scalar types/lengths — never a scalar value itself, and never
 //! a process command line, so no token or conversation content ever appears (#160).
 
@@ -256,7 +256,7 @@ mod tests {
     /// values do not.
     #[test]
     fn dump_sqlite_keeps_columns_but_not_values() {
-        let path = std::env::temp_dir().join(format!("codenotch-diag-{}-sqlite.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!("runoptic-diag-{}-sqlite.db", std::process::id()));
         let _ = std::fs::remove_file(&path); // a recycled pid must not see a stale table
         {
             let conn = rusqlite::Connection::open(&path).unwrap();
@@ -276,7 +276,7 @@ mod tests {
     /// scalar values do not.
     #[test]
     fn json_scalars_render_as_type_and_length_only() {
-        let path = std::env::temp_dir().join(format!("codenotch-diag-{}-state.json", std::process::id()));
+        let path = std::env::temp_dir().join(format!("runoptic-diag-{}-state.json", std::process::id()));
         std::fs::write(
             &path,
             format!(r#"{{"token":"{SECRET}","port":987654321,"darkMode":true,"absent":null,"windows":[1,2],"nested":{{"password":"hunter2"}}}}"#),
