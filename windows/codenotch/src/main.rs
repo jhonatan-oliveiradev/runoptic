@@ -930,7 +930,8 @@ fn get_scale(app: AppHandle) -> f64 {
 #[tauri::command]
 fn get_theme(app: AppHandle) -> config::ThemeConfig {
     let st = app.state::<AppState>();
-    st.cfg.lock().unwrap().theme.clone()
+    let c = st.cfg.lock().unwrap();
+    c.theme.clone()
 }
 
 #[tauri::command]
