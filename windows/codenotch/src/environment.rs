@@ -23,6 +23,9 @@ pub struct SourceEnvironment {
     pub distro: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linux_home: Option<String>,
+    /// Windows is always active. For WSL this says whether the distro was already running when
+    /// discovery began; RunOptic does not start stopped distros just to inspect them.
+    pub running: bool,
     pub reachable: bool,
     pub system: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -74,10 +77,16 @@ pub fn probe() -> String {
                 let distro = env.distro.as_deref().unwrap_or("?");
                 let system = if env.system { " system" } else { "" };
                 let linux = env.linux_home.as_deref().unwrap_or("(unresolved)");
+                let state = if !env.running {
+                    "stopped"
+                } else if env.reachable {
+                    "running reachable"
+                } else {
+                    "running unreachable"
+                };
                 out += &format!(
-                    "  wsl: {distro}{system} linux_home={linux} windows_home={} [{}]\n",
-                    env.home.display(),
-                    if env.reachable { "reachable" } else { "unreachable" }
+                    "  wsl: {distro}{system} linux_home={linux} windows_home={} [{state}]\n",
+                    env.home.display()
                 );
                 if let Some(diag) = &env.diagnostic {
                     out += &format!("    diagnostic: {diag}\n");
@@ -107,6 +116,7 @@ fn windows_native() -> SourceEnvironment {
         id: "windows-native".into(),
         kind: EnvironmentKind::WindowsNative,
         label: "Windows".into(),
+        running: true,
         reachable: home.exists(),
         home,
         distro: None,
@@ -131,33 +141,58 @@ fn discover_wsl() -> Result<Vec<SourceEnvironment>, String> {
     }
 
     let distros = parse_wsl_list(&decode_output(&output.stdout));
-    let mut out = Vec::with_capacity(distros.len());
 
+    // Listing running distributions is observational only. Resolving $HOME through `wsl -d`
+    // would start a stopped distro, which a monitor must not do behind the user's back.
+    let running = run_wsl(&["--list", "--running", "--quiet"])
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| parse_wsl_list(&decode_output(&output.stdout)))
+        .unwrap_or_default();
+
+    let mut out = Vec::with_capacity(distros.len());
     for distro in distros {
-        out.push(resolve_wsl_environment(&distro));
+        let is_running = running.iter().any(|name| name.eq_ignore_ascii_case(&distro));
+        out.push(resolve_wsl_environment(&distro, is_running));
     }
 
     Ok(out)
 }
 
-fn resolve_wsl_environment(distro: &str) -> SourceEnvironment {
+fn resolve_wsl_environment(distro: &str, running: bool) -> SourceEnvironment {
     let id = format!("wsl:{}", distro.to_ascii_lowercase());
     let system = is_system_distro(distro);
+    let root = PathBuf::from(format!(r"\\wsl.localhost\{distro}"));
 
-    // Infrastructure distros are useful diagnostic context, but probing them would start a
-    // container/runtime VM that RunOptic has no reason to inspect for developer credentials.
+    // Infrastructure distros are useful diagnostic context, but probing them would inspect a
+    // container/runtime VM that RunOptic has no reason to treat as a developer environment.
     if system {
-        let home = PathBuf::from(format!(r"\\wsl.localhost\{distro}"));
         return SourceEnvironment {
             id,
             kind: EnvironmentKind::Wsl,
             label: format!("WSL · {distro}"),
-            reachable: home.exists(),
-            home,
+            home: root.clone(),
             distro: Some(distro.to_string()),
             linux_home: None,
+            running,
+            reachable: running && root.exists(),
             system: true,
             diagnostic: Some("infrastructure distro; HOME resolution skipped".into()),
+        };
+    }
+
+    if !running {
+        return SourceEnvironment {
+            id,
+            kind: EnvironmentKind::Wsl,
+            label: format!("WSL · {distro}"),
+            home: root,
+            distro: Some(distro.to_string()),
+            linux_home: None,
+            running: false,
+            reachable: false,
+            system: false,
+            diagnostic: Some("distro is stopped; HOME resolution skipped".into()),
         };
     }
 
@@ -171,6 +206,7 @@ fn resolve_wsl_environment(distro: &str) -> SourceEnvironment {
                 home,
                 distro: Some(distro.to_string()),
                 linux_home: Some(linux_home),
+                running: true,
                 reachable,
                 system,
                 diagnostic: None,
@@ -183,6 +219,7 @@ fn resolve_wsl_environment(distro: &str) -> SourceEnvironment {
             home: PathBuf::from(format!(r"\\wsl.localhost\{distro}")),
             distro: Some(distro.to_string()),
             linux_home: None,
+            running: true,
             reachable: false,
             system,
             diagnostic: Some(err),
