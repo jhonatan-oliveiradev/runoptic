@@ -236,13 +236,39 @@
   .c-sub,.w-reset,.w-used,.s-more,.c-note,.s-row{color:var(--ro-muted)}
   .handle.hover .h-disc{border-color:var(--ro-accent)}
   #move.armed .h-disc{border-color:var(--ro-accent)}
+  .ringwrap > svg.ring,.ringwrap > svg.reading,.ringwrap > svg.activity{width:100%;height:100%}
+
+  body[data-size="small"] #pill{
+    width:60px;padding-top:14px;padding-bottom:14px;border-radius:28px 0 0 28px;
+    --fillet:34px;
+    gap:11px;
+  }
+  body[data-size="small"][data-edge="left"] #pill{border-radius:0 28px 28px 0}
+  body[data-size="small"][data-edge="top"] #pill{width:auto;padding:10px 15px;border-radius:0 0 28px 28px}
+  body[data-size="small"][data-edge="bottom"] #pill{width:auto;padding:10px 15px;border-radius:28px 28px 0 0}
+  body[data-size="small"] .ringwrap{width:46px;height:46px}
   body[data-size="small"] .glyph .mark,
   body[data-size="small"] .glyph .mark svg,
-  body[data-size="small"] .glyph img.png{width:20px;height:20px}
-  body[data-size="small"] .glyph img.appicon{width:23px;height:23px;border-radius:7px}
-  body[data-size="small"] .glyph{font-size:16px}
-  body[data-size="small"] .pct{font-size:13px}
-  body[data-size="small"] .cell{gap:4px}
+  body[data-size="small"] .glyph img.png{width:18px;height:18px}
+  body[data-size="small"] .glyph img.appicon{width:21px;height:21px;border-radius:7px}
+  body[data-size="small"] .glyph{font-size:15px}
+  body[data-size="small"] .pct{font-size:12px;line-height:1}
+  body[data-size="small"] .cell{width:52px;gap:4px;border-radius:18px}
+
+  body[data-size="medium"] #pill{
+    border-radius:34px 0 0 34px;--fillet:40px;
+  }
+  body[data-size="medium"][data-edge="left"] #pill{border-radius:0 34px 34px 0}
+  body[data-size="medium"][data-edge="top"] #pill{border-radius:0 0 34px 34px}
+  body[data-size="medium"][data-edge="bottom"] #pill{border-radius:34px 34px 0 0}
+
+  body[data-size="large"] #pill{
+    border-radius:38px 0 0 38px;--fillet:44px;
+  }
+  body[data-size="large"][data-edge="left"] #pill{border-radius:0 38px 38px 0}
+  body[data-size="large"][data-edge="top"] #pill{border-radius:0 0 38px 38px}
+  body[data-size="large"][data-edge="bottom"] #pill{border-radius:38px 38px 0 0}
+  body[data-size="large"] .ringwrap{width:62px;height:62px}
   body[data-size="large"] .glyph .mark,
   body[data-size="large"] .glyph .mark svg,
   body[data-size="large"] .glyph img.png{width:29px;height:29px}
