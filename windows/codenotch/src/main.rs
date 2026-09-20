@@ -5,6 +5,7 @@ mod config;
 mod doctor;
 mod environment;
 mod profile;
+mod inventory;
 mod focus;
 mod hooks_install;
 mod i18n;
@@ -54,6 +55,9 @@ pub struct AppState {
     pub glyphs: Mutex<std::collections::HashMap<String, glyphs::Glyph>>,
     /// Working state of the non-Claude providers (Cursor reports it; Codex and Antigravity are inferred from recent writes)
     pub activity: Mutex<Vec<activity::Activity>>,
+    /// Environment/profile inventory. Populated off the UI thread after startup so WSL discovery
+    /// cannot delay the notch becoming visible.
+    pub inventory: Mutex<Option<inventory::RuntimeInventory>>,
 }
 
 fn resolved_lang(raw: &str) -> String {
@@ -560,6 +564,11 @@ fn get_state(state: tauri::State<AppState>) -> state::Snapshot {
 #[tauri::command]
 fn get_usage(state: tauri::State<AppState>) -> usage::UsageSnapshot {
     state.usage.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_runtime_inventory(state: tauri::State<AppState>) -> Option<inventory::RuntimeInventory> {
+    state.inventory.lock().unwrap().clone()
 }
 
 /// Asks one provider to read again, and says whether a reading is on its way. Claude's rate-limit
@@ -1557,10 +1566,12 @@ fn main() {
             antigravity: Mutex::new(antigravity::load_persisted()),
             glyphs: Mutex::new(Default::default()),
             activity: Mutex::new(Vec::new()),
+            inventory: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
             get_usage,
+            get_runtime_inventory,
             get_codex,
             get_cursor,
             get_grok,
@@ -1624,6 +1635,25 @@ fn main() {
             // Honours the saved switches: a notch hidden last time stays hidden.
             apply_visibility(&handle);
             server::start(handle.clone(), port);
+
+            // WSL/profile discovery can take a moment on a machine with running distributions.
+            // Keep it off the UI thread and cache one launch-time snapshot for every consumer.
+            let inventory_app = handle.clone();
+            std::thread::spawn(move || {
+                activity::lower_thread_priority();
+                let snapshot = inventory::scan();
+                let env_count = snapshot.environment_report.environments.len();
+                let profile_count = snapshot.profiles.len();
+                {
+                    let st = inventory_app.state::<AppState>();
+                    *st.inventory.lock().unwrap() = Some(snapshot.clone());
+                }
+                applog(&format!(
+                    "runtime inventory: {env_count} environments, {profile_count} tool profiles"
+                ));
+                let _ = inventory_app.emit("runtime_inventory", &snapshot);
+            });
+
             watcher::start(handle.clone());
             usage::start(handle.clone());
             codex::start(handle.clone());
