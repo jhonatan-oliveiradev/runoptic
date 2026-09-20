@@ -219,6 +219,7 @@ mod tests {
             home,
             distro: None,
             linux_home: None,
+            running: true,
             reachable: true,
             system: false,
             diagnostic: None,
