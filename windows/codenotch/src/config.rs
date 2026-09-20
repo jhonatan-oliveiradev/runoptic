@@ -22,6 +22,79 @@ pub struct TraySlot {
     pub provider: String,
 }
 
+/// User-facing colour tokens. RunOptic ships with a stable default theme, while Custom lets the
+/// developer tune the monitor like a terminal or editor without changing provider semantics.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ThemeConfig {
+    #[serde(default = "default_theme_preset")]
+    pub preset: String,
+    #[serde(default = "default_theme_accent")]
+    pub accent: String,
+    #[serde(default = "default_theme_background")]
+    pub background: String,
+    #[serde(default = "default_theme_surface")]
+    pub surface: String,
+    #[serde(default = "default_theme_text")]
+    pub text: String,
+    #[serde(default = "default_theme_muted")]
+    pub muted: String,
+    #[serde(default = "default_theme_warning")]
+    pub warning: String,
+    #[serde(default = "default_theme_critical")]
+    pub critical: String,
+}
+
+fn default_theme_preset() -> String { "runoptic".into() }
+fn default_theme_accent() -> String { "#A7F432".into() }
+fn default_theme_background() -> String { "#0B0D10".into() }
+fn default_theme_surface() -> String { "#11161C".into() }
+fn default_theme_text() -> String { "#F4F7F8".into() }
+fn default_theme_muted() -> String { "#7F8995".into() }
+fn default_theme_warning() -> String { "#F6B84A".into() }
+fn default_theme_critical() -> String { "#FF5F68".into() }
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            preset: default_theme_preset(),
+            accent: default_theme_accent(),
+            background: default_theme_background(),
+            surface: default_theme_surface(),
+            text: default_theme_text(),
+            muted: default_theme_muted(),
+            warning: default_theme_warning(),
+            critical: default_theme_critical(),
+        }
+    }
+}
+
+fn valid_hex(value: &str) -> bool {
+    value.len() == 7
+        && value.starts_with('#')
+        && value.as_bytes()[1..].iter().all(|b| b.is_ascii_hexdigit())
+}
+
+fn color_or(value: String, fallback: fn() -> String) -> String {
+    if valid_hex(&value) { value.to_ascii_uppercase() } else { fallback() }
+}
+
+/// Keeps hand-edited config safe and deterministic. Selecting the RunOptic preset always restores
+/// the official palette; Custom persists validated #RRGGBB values.
+pub fn normalise_theme(mut theme: ThemeConfig) -> ThemeConfig {
+    if theme.preset != "custom" {
+        return ThemeConfig::default();
+    }
+    theme.preset = "custom".into();
+    theme.accent = color_or(theme.accent, default_theme_accent);
+    theme.background = color_or(theme.background, default_theme_background);
+    theme.surface = color_or(theme.surface, default_theme_surface);
+    theme.text = color_or(theme.text, default_theme_text);
+    theme.muted = color_or(theme.muted, default_theme_muted);
+    theme.warning = color_or(theme.warning, default_theme_warning);
+    theme.critical = color_or(theme.critical, default_theme_critical);
+    theme
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default = "default_port")]
@@ -52,8 +125,7 @@ pub struct Config {
     /// name no longer attached, means the primary monitor — so unplugging a screen cannot strand it.
     #[serde(default)]
     pub notch_monitor: Option<String>,
-    /// Notch size as a multiple of the designed size, one of `SIZES`. The whole notch scales: the
-    /// window grows and its WebView zooms, so the rings, text and hover card keep their proportions.
+    /// Notch size as a multiple of the designed size, one of `SIZES`.
     #[serde(default = "default_scale")]
     pub scale: f64,
     /// Where the weekly limit gets a ring of its own: "off", "inside" or "outside".
@@ -83,25 +155,20 @@ pub struct Config {
     /// false = no arc above the notch to carry it by. Nothing is lost: Appearance → Edge moves it too.
     #[serde(default = "yes")]
     pub show_move_handle: bool,
+    /// RunOptic palette. Missing in older configs -> official RunOptic theme.
+    #[serde(default)]
+    pub theme: ThemeConfig,
 }
 
-fn default_notch_y() -> f64 {
-    0.5
-}
-fn default_notch_edge() -> String {
-    "right".into()
-}
+fn default_notch_y() -> f64 { 0.5 }
+fn default_notch_edge() -> String { "right".into() }
 
 /// The four edges, in the order Settings lists them.
 pub const EDGES: [&str; 4] = ["left", "right", "top", "bottom"];
 
 /// An unreadable edge means the right-hand one, the layout every earlier build used.
 pub fn edge_or_right(value: &str) -> String {
-    if EDGES.contains(&value) {
-        value.to_string()
-    } else {
-        "right".into()
-    }
+    if EDGES.contains(&value) { value.to_string() } else { "right".into() }
 }
 
 /// True for the edges the notch stands upright on (the pill is a column); false for top and bottom,
@@ -109,12 +176,8 @@ pub fn edge_or_right(value: &str) -> String {
 pub fn edge_is_vertical(edge: &str) -> bool {
     matches!(edge, "left" | "right")
 }
-fn default_scale() -> f64 {
-    1.0
-}
-fn default_weekly_ring() -> String {
-    "off".into()
-}
+fn default_scale() -> f64 { 1.0 }
+fn default_weekly_ring() -> String { "off".into() }
 
 /// A second arc changes how every reading looks, so an unreadable value means off rather than a
 /// guess at what was meant.
@@ -124,22 +187,11 @@ pub fn weekly_ring_or_off(value: &str) -> String {
         _ => default_weekly_ring(),
     }
 }
-fn yes() -> bool {
-    true
-}
-fn default_antigravity_limit() -> String {
-    "automatic".into()
-}
-fn default_antigravity_model() -> String {
-    "gemini".into()
-}
-
-fn default_port() -> u16 {
-    48666
-}
-fn default_lang() -> String {
-    "auto".into()
-}
+fn yes() -> bool { true }
+fn default_antigravity_limit() -> String { "automatic".into() }
+fn default_antigravity_model() -> String { "gemini".into() }
+fn default_port() -> u16 { 48666 }
+fn default_lang() -> String { "auto".into() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -155,13 +207,14 @@ impl Default for Config {
             notch_monitor: None,
             scale: default_scale(),
             weekly_ring: default_weekly_ring(),
-            notch_providers: Vec::new(), // empty = show them all
-            notch_slots: Vec::new(),     // filled in by load(), from notch_providers
+            notch_providers: Vec::new(),
+            notch_slots: Vec::new(),
             antigravity_limit: default_antigravity_limit(),
             antigravity_model: default_antigravity_model(),
             notch_visible: true,
             tray_visible: true,
             show_move_handle: true,
+            theme: ThemeConfig::default(),
         }
     }
 }
@@ -181,8 +234,6 @@ pub fn load() -> Config {
         .and_then(|t| serde_json::from_str(t).ok())
         .unwrap_or_default();
 
-    // Migration: before slots existed the notch was a plain provider list, one ring each. That is
-    // exactly a list of slots, so nobody's choice is lost and nobody has to reconfigure anything.
     if cfg.notch_slots.is_empty() {
         cfg.notch_slots = cfg
             .notch_providers
@@ -191,14 +242,13 @@ pub fn load() -> Config {
             .collect();
     }
 
-    // Both hidden would leave the app unreachable: no pill, no tray icon, no way to open settings.
     if !cfg.notch_visible && !cfg.tray_visible {
         cfg.tray_visible = true;
     }
 
-    // The old slider's 40–100 %, or a hand-edited file, lands on one of the three sizes
     cfg.scale = snap_scale(cfg.scale);
     cfg.weekly_ring = weekly_ring_or_off(&cfg.weekly_ring);
+    cfg.theme = normalise_theme(cfg.theme);
     cfg
 }
 
@@ -214,7 +264,7 @@ pub fn save(cfg: &Config) {
 
 #[cfg(test)]
 mod tests {
-    use super::{snap_scale, weekly_ring_or_off};
+    use super::{normalise_theme, snap_scale, weekly_ring_or_off, ThemeConfig};
 
     #[test]
     fn a_saved_scale_snaps_to_the_nearest_size() {
@@ -232,5 +282,24 @@ mod tests {
         assert_eq!(weekly_ring_or_off("outside"), "outside");
         assert_eq!(weekly_ring_or_off("Inside"), "off");
         assert_eq!(weekly_ring_or_off(""), "off");
+    }
+
+    #[test]
+    fn runoptic_preset_restores_official_palette() {
+        let mut t = ThemeConfig::default();
+        t.preset = "runoptic".into();
+        t.accent = "#123456".into();
+        assert_eq!(normalise_theme(t), ThemeConfig::default());
+    }
+
+    #[test]
+    fn custom_theme_rejects_invalid_colours() {
+        let mut t = ThemeConfig::default();
+        t.preset = "custom".into();
+        t.accent = "lime".into();
+        t.background = "#123abc".into();
+        let t = normalise_theme(t);
+        assert_eq!(t.accent, "#A7F432");
+        assert_eq!(t.background, "#123ABC");
     }
 }
