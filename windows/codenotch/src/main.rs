@@ -3,6 +3,7 @@
 mod autostart;
 mod config;
 mod doctor;
+mod environment;
 mod focus;
 mod hooks_install;
 mod i18n;
