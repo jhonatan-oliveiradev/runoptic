@@ -927,6 +927,25 @@ fn get_scale(app: AppHandle) -> f64 {
     ui_scale(&app)
 }
 
+#[tauri::command]
+fn get_theme(app: AppHandle) -> config::ThemeConfig {
+    let st = app.state::<AppState>();
+    st.cfg.lock().unwrap().theme.clone()
+}
+
+#[tauri::command]
+fn set_theme(app: AppHandle, theme: config::ThemeConfig) -> config::ThemeConfig {
+    let value = {
+        let st = app.state::<AppState>();
+        let mut c = st.cfg.lock().unwrap();
+        c.theme = config::normalise_theme(theme);
+        config::save(&c);
+        c.theme.clone()
+    };
+    let _ = app.emit("theme", &value);
+    value
+}
+
 /// Settings' Small, Medium or Large. The notch window is resized and zoomed around its centre.
 #[tauri::command]
 fn set_scale(app: AppHandle, scale: f64) -> f64 {
@@ -938,6 +957,7 @@ fn set_scale(app: AppHandle, scale: f64) -> f64 {
         c.scale
     };
     place_notch(&app);
+    let _ = app.emit("scale", value);
     value
 }
 
@@ -1556,6 +1576,8 @@ fn main() {
             set_lang,
             get_scale,
             set_scale,
+            get_theme,
+            set_theme,
             get_weekly_ring,
             set_weekly_ring,
             get_tray_options,
