@@ -75,7 +75,9 @@ pub fn run() -> String {
         }
     }
 
+    let environment_report = crate::environment::discover();
     o += &format!("\nenvironments:\n{}\n", crate::environment::probe());
+    o += &format!("\ntool profiles:\n{}\n", crate::profile::probe(&environment_report));
 
     o += &format!("\nusage sources:\n  {}\n  {}\n", crate::usage::probe_credentials(), crate::codex::probe());
     o += &format!("  {}\n", crate::cursor::probe());
