@@ -57,6 +57,47 @@ pub fn discover() -> DiscoveryReport {
     }
 }
 
+pub fn probe() -> String {
+    let report = discover();
+    let mut out = String::new();
+
+    for env in &report.environments {
+        match env.kind {
+            EnvironmentKind::WindowsNative => {
+                out += &format!(
+                    "  windows-native: home={} [{}]\n",
+                    env.home.display(),
+                    if env.reachable { "reachable" } else { "unreachable" }
+                );
+            }
+            EnvironmentKind::Wsl => {
+                let distro = env.distro.as_deref().unwrap_or("?");
+                let system = if env.system { " system" } else { "" };
+                let linux = env.linux_home.as_deref().unwrap_or("(unresolved)");
+                out += &format!(
+                    "  wsl: {distro}{system} linux_home={linux} windows_home={} [{}]\n",
+                    env.home.display(),
+                    if env.reachable { "reachable" } else { "unreachable" }
+                );
+                if let Some(diag) = &env.diagnostic {
+                    out += &format!("    diagnostic: {diag}\n");
+                }
+            }
+        }
+    }
+
+    if !report.wsl_available {
+        out += &format!(
+            "  wsl: unavailable ({})\n",
+            report.wsl_error.as_deref().unwrap_or("unknown error")
+        );
+    } else if report.environments.iter().all(|env| env.kind != EnvironmentKind::Wsl) {
+        out += "  wsl: available, no distributions registered\n";
+    }
+
+    out.trim_end().to_string()
+}
+
 fn windows_native() -> SourceEnvironment {
     let home = dirs::home_dir()
         .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
