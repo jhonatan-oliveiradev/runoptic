@@ -4,6 +4,7 @@ mod autostart;
 mod config;
 mod doctor;
 mod environment;
+mod profile;
 mod focus;
 mod hooks_install;
 mod i18n;
