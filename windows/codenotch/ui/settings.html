@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Codenotch Settings</title>
+<title>RunOptic Settings</title>
 <style>
   /* The Mac's Settings (Sources/Settings/SettingsView.swift) over Windows 11's Mica: a sidebar card
      darker than the pane, grouped sections with captions as rows, and Windows' own control cues —
@@ -113,17 +113,151 @@
   #toast{position:fixed;right:18px;bottom:14px;background:var(--side);border:1px solid var(--line);border-radius:8px;
     padding:5px 10px;font-size:12px;color:var(--text2);opacity:0;transition:opacity .3s;pointer-events:none}
   #toast.show{opacity:1}
+
+  /* ---- RunOptic Visual Foundation v1 ------------------------------------- */
+  :root{
+    --accent:#A7F432; --on-accent:#0B0D10;
+    --text:#F4F7F8; --text2:#A8B0BA; --text3:#6F7883;
+    --pane:#0B0D10; --side:#0F1318; --group:#11161C;
+    --line:#242A32; --hi:rgba(255,255,255,.035); --sep:#20262D;
+    --seg-bg:#0B1015; --hover:#151B21; --sel-soft:rgba(167,244,50,.075);
+    --btn:#171D23; --btn-hover:#202830;
+    --danger-bg:rgba(255,95,104,.10); --danger:#FF6D75;
+  }
+  html,body{background:#0B0D10}
+  body,body.solid{
+    --pane:#0B0D10;--side:#0F1318;--group:#11161C;--hi:rgba(255,255,255,.035);
+    background:#0B0D10;color:var(--text);
+  }
+  #app{background:#0B0D10}
+  #side{
+    width:190px;margin:8px 0 8px 8px;padding:0 8px 8px;
+    border-radius:12px;background:#0F1318;border:1px solid #202730;
+    box-shadow:0 18px 40px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.025)
+  }
+  #side .band{display:none}
+  .brand{
+    height:72px;display:flex;align-items:center;gap:10px;padding:0 9px;
+    border-bottom:1px solid #1C232B;margin:0 0 9px;color:#F4F7F8;flex:none
+  }
+  .brand-mark{
+    width:29px;height:29px;border-radius:9px;background:#0B0D10;border:1px solid #2B343E;
+    display:grid;place-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)
+  }
+  .brand-mark svg{width:21px;height:21px;display:block}
+  .brand-copy{display:flex;flex-direction:column;gap:1px;line-height:1;pointer-events:none}
+  .brand-copy strong{font-size:13.5px;font-weight:700;letter-spacing:.01em}
+  .brand-copy small{font-size:8px;font-weight:650;letter-spacing:.16em;color:#75808C}
+  .row{
+    height:37px;padding:0 9px;margin-bottom:3px;border-radius:8px;border:1px solid transparent;
+    color:#A8B0BA;font-size:13px;font-weight:500;transition:background .12s,border-color .12s,color .12s
+  }
+  .row:hover{background:#151B21;color:#E7EBEE}
+  .row.sel{
+    background:rgba(167,244,50,.065);border-color:rgba(167,244,50,.13);color:#F4F7F8
+  }
+  .row.sel::before{left:-1px;top:9px;bottom:9px;width:2px;background:#A7F432;box-shadow:0 0 10px rgba(167,244,50,.32)}
+  .badge{
+    width:22px;height:22px;border-radius:6px;background:#141A20!important;border:1px solid #29323C;
+    color:#8E98A4;box-shadow:none
+  }
+  .badge svg{width:12px;height:12px;fill:currentColor}
+  .row.sel .badge{color:#A7F432;border-color:rgba(167,244,50,.22);background:#121912!important}
+  #quit{color:#9099A4}
+  #quit:hover{color:#FF7A82;background:rgba(255,95,104,.06)}
+  #quit .badge{color:#FF7078;background:#181315!important;border-color:rgba(255,95,104,.16)}
+  #pane{background:#0B0D10}
+  #head{height:64px;padding-left:26px;border-bottom:1px solid #151B21}
+  #head h1{font-size:19px;font-weight:650;letter-spacing:-.01em}
+  #close{top:1px;right:1px;width:44px;height:32px;color:#737E89;border-radius:7px}
+  #close:hover{background:rgba(255,95,104,.12);color:#FF8B92}
+  #body{padding:5px 24px 24px}
+  .sec{
+    margin:17px 3px 8px;font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.12em;color:#6F7883
+  }
+  .pane > .sec:first-child{margin-top:9px}
+  .group{
+    background:#11161C;border:1px solid #202832;border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.02)
+  }
+  .group + .group{margin-top:13px}
+  .group > * + *{border-top-color:#1D242C}
+  .item{padding:10px 13px;min-height:42px}
+  .item.cap{padding:8px 13px;color:#7F8995;font-size:11.5px;line-height:1.45}
+  .item .hint,.value{color:#89939E}
+  .acct{padding:11px 13px}
+  .acct-line{min-height:25px}
+  .acct-name{gap:9px;font-weight:560}
+  .acct-detail{margin:4px 0 0 25px;color:#818B97}
+  .acct-sub{margin-left:25px}
+  .glyph{color:#DCE2E7}
+  .acct.off .glyph{opacity:.42}
+  .switch{
+    width:38px;height:20px;border:1px solid #39434E;background:#171D23
+  }
+  .switch::after{top:3px;left:3px;background:#89939E}
+  .switch.on{border-color:#A7F432;background:#A7F432;box-shadow:0 0 0 1px rgba(167,244,50,.08)}
+  .switch.on::after{left:21px;background:#0B0D10}
+  .seg{background:#0B1015;border:1px solid #202832;border-radius:8px;padding:2px}
+  .seg button{padding:4px 12px;border-radius:6px;color:#8E98A4}
+  .seg button:hover:not(.on):not(:disabled){background:#161D24;color:#D8DEE3}
+  .seg button.on{background:#A7F432;color:#0B0D10;font-weight:650}
+  .btn{
+    background:#171D23;border:1px solid #27303A;border-radius:7px;padding:5px 11px;color:#DCE2E7
+  }
+  .btn:hover{background:#202830;border-color:#333D48}
+  select{
+    color:#DCE2E7;background:#11171D;border:1px solid #27303A;border-radius:7px;padding:5px 8px
+  }
+  select option{background:#11161C;color:#F4F7F8}
+  .link{color:#A7F432}
+  #strip{border:1px solid rgba(255,95,104,.16);background:rgba(255,95,104,.08);color:#FF8D94}
+  #toast{background:#10161C;border-color:#26303A;color:#A8B0BA;box-shadow:0 12px 30px rgba(0,0,0,.28)}
+
+
+  /* ---- RunOptic theme editor --------------------------------------------- */
+  :root{
+    --ro-bg:#0B0D10;--ro-surface:#11161C;--ro-text:#F4F7F8;--ro-muted:#7F8995;
+    --ro-warning:#F6B84A;--ro-critical:#FF5F68;
+  }
+  body,body.solid,#app,#pane{background:var(--ro-bg)!important}
+  #side,.group,#toast{background:var(--ro-surface)!important}
+  body{color:var(--ro-text)}
+  .theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px 12px}
+  .theme-color{
+    min-height:38px;border:1px solid #242D36;border-radius:8px;background:rgba(255,255,255,.018);
+    display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px
+  }
+  .theme-color span{font-size:11.5px;color:var(--ro-muted)}
+  .theme-color input[type="color"]{
+    appearance:none;width:28px;height:22px;padding:0;border:1px solid #34404B;border-radius:6px;
+    background:transparent;overflow:hidden;cursor:pointer
+  }
+  .theme-color input[type="color"]::-webkit-color-swatch-wrapper{padding:2px}
+  .theme-color input[type="color"]::-webkit-color-swatch{border:0;border-radius:3px}
+  .theme-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  #theme-custom[hidden]{display:none!important}
+
 </style>
 </head>
 <body>
 <div id="app">
   <nav id="side" role="tablist" aria-orientation="vertical" aria-label="Settings sections">
-    <div class="band" data-tauri-drag-region></div>
+    <div class="brand" data-tauri-drag-region>
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="8.2" fill="none" stroke="#F4F7F8" stroke-width="2.8" stroke-dasharray="9.2 3.7" transform="rotate(-45 16 16)"/>
+          <circle cx="16" cy="16" r="2.8" fill="#A7F432"/>
+          <path d="M16 2.5v3M29.5 16h-3M16 29.5v-3M2.5 16h3" stroke="#A7F432" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="brand-copy"><strong>RunOptic</strong><small>OBSERVABILITY</small></span>
+    </div>
     <button class="row" id="tab-accounts" role="tab" aria-controls="pane-accounts" aria-selected="false" tabindex="-1"><span class="badge b-blue"><svg viewBox="0 0 12 12"><circle cx="6" cy="4" r="2.4"/><path d="M1.5 11.2c.4-2.5 2.3-3.9 4.5-3.9s4.1 1.4 4.5 3.9z"/></svg></span><span>Accounts</span></button>
     <button class="row" id="tab-appearance" role="tab" aria-controls="pane-appearance" aria-selected="false" tabindex="-1"><span class="badge b-indigo"><svg viewBox="0 0 12 12"><path d="M10 .9a.8.8 0 0 1 1.1 1.1L6.4 6.7 5.3 5.6zM4.6 6.3l1.1 1.1c.2 1.9-1.9 3.6-4.7 3.1.9-.4 1.2-1 1.3-1.8.1-1.3 1.1-2.3 2.3-2.4z"/></svg></span><span>Appearance</span></button>
     <button class="row" id="tab-general" role="tab" aria-controls="pane-general" aria-selected="false" tabindex="-1"><span class="badge b-gray"><svg viewBox="0 0 12 12"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg></span><span>General</span></button>
     <div class="grow" data-tauri-drag-region></div>
-    <button class="row" id="quit"><span class="badge b-red"><svg viewBox="0 0 12 12"><path d="M6 1.2v4.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M3.4 3.1a3.9 3.9 0 1 0 5.2 0" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span><span>Quit Codenotch</span></button>
+    <button class="row" id="quit"><span class="badge b-red"><svg viewBox="0 0 12 12"><path d="M6 1.2v4.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M3.4 3.1a3.9 3.9 0 1 0 5.2 0" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span><span>Quit RunOptic</span></button>
   </nav>
 
   <main id="pane">
@@ -162,6 +296,23 @@
           <div class="item cap" id="cap-screen" data-dynamic hidden></div>
           <div class="item"><span class="hint">The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen's right-hand edge if the screen it was on has been unplugged.</span><button class="btn" id="btn-recentre">Recentre</button></div>
         </div>
+        <div class="sec">Theme</div>
+        <div class="group">
+          <div class="item"><span>Theme</span><span class="seg" id="seg-theme"><button data-v="runoptic">RunOptic</button><button data-v="custom">Custom</button></span></div>
+          <div class="item cap">RunOptic is the default. Custom themes change presentation only — provider health semantics and telemetry stay the same.</div>
+          <div id="theme-custom" hidden>
+            <div class="theme-grid">
+              <label class="theme-color"><span>Accent</span><input type="color" data-theme-key="accent" value="#A7F432" aria-label="Theme accent"></label>
+              <label class="theme-color"><span>Background</span><input type="color" data-theme-key="background" value="#0B0D10" aria-label="Theme background"></label>
+              <label class="theme-color"><span>Surface</span><input type="color" data-theme-key="surface" value="#11161C" aria-label="Theme surface"></label>
+              <label class="theme-color"><span>Text</span><input type="color" data-theme-key="text" value="#F4F7F8" aria-label="Theme text"></label>
+              <label class="theme-color"><span>Muted</span><input type="color" data-theme-key="muted" value="#7F8995" aria-label="Theme muted text"></label>
+              <label class="theme-color"><span>Warning</span><input type="color" data-theme-key="warning" value="#F6B84A" aria-label="Theme warning"></label>
+              <label class="theme-color"><span>Critical</span><input type="color" data-theme-key="critical" value="#FF5F68" aria-label="Theme critical"></label>
+            </div>
+            <div class="item cap theme-actions"><span>Changes preview immediately and are saved locally.</span><button class="btn" id="btn-theme-reset">Reset colors</button></div>
+          </div>
+        </div>
         <div class="sec">App</div>
         <div class="group">
           <div class="item"><span>App icon</span><span class="seg" id="seg-tray"><button data-v="tray">System tray</button><button data-v="none">Neither</button></span></div>
@@ -179,22 +330,22 @@
               <option value="uk">Українська</option>
             </select>
           </div>
-          <div class="item cap">Sets the language used by Codenotch. “Follow system” uses the language Windows itself is set to.</div>
+          <div class="item cap">Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.</div>
         </div>
       </section>
 
       <section class="pane" id="pane-general" role="tabpanel" aria-labelledby="tab-general" hidden>
         <div class="group">
-          <div class="item"><span>Open Codenotch at login</span><button class="switch" id="sw-autostart" role="switch" aria-checked="false" aria-label="Open Codenotch at login"></button></div>
-          <div class="item cap">Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.</div>
+          <div class="item"><span>Open RunOptic at login</span><button class="switch" id="sw-autostart" role="switch" aria-checked="false" aria-label="Open RunOptic at login"></button></div>
+          <div class="item cap">RunOptic opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open RunOptic yourself.</div>
           <div class="item"><span>Version</span><span class="value" id="about-version" data-dynamic>0.3.0</span></div>
         </div>
         <div class="group">
           <div class="item"><span>Data folder</span><button class="btn" id="btn-data">Open folder</button></div>
-          <div class="item cap">Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.</div>
+          <div class="item cap">Everything RunOptic remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.</div>
         </div>
         <div class="group">
-          <div class="item cap"><span>App designed and developed by</span> <button class="link" id="author">@hivinz_</button></div>
+          <div class="item cap"><span>RunOptic by</span> <button class="link" id="author">@jhonatan-oliveiradev</button></div>
         </div>
       </section>
 
@@ -205,7 +356,7 @@
 
 <script>
 /* ---------------------------------------------------------------------------
-   Codenotch settings: the Mac's three panes — Accounts, Appearance, General.
+   RunOptic settings: the Mac's three panes — Accounts, Appearance, General.
 
    Every value on screen comes from a Rust command and is written back by one.
    Every call is wrapped so a failure paints the strip under the title instead
@@ -234,15 +385,15 @@ function esc(s){
    rewording any string here means changing its key in every table. */
 const RU_STATIC = {
   'Settings sections':'Разделы настроек', 'Close':'Закрыть',
-  'Accounts':'Аккаунты', 'Appearance':'Внешний вид', 'General':'Общие', 'Quit Codenotch':'Выйти из Codenotch',
+  'Accounts':'Аккаунты', 'Appearance':'Внешний вид', 'General':'Общие', 'Quit RunOptic':'Выйти из RunOptic',
   'Connected':'Подключён', 'Not connected':'Не подключён',
   'These have no ring to place. Switch one on and it joins the end of the list above.':'У этих провайдеров нет кольца. Включите один, и он добавится в конец списка выше.',
   'One provider always stays ticked, so the pill is never empty.':'Хотя бы один провайдер всегда выбран, поэтому панель не бывает пустой.',
   'At least one provider stays on the notch':'На панели должен остаться хотя бы один провайдер',
   'Notch reads':'Показания панели', 'Model data':'Данные модели', 'Automatic':'Автоматически', '5-Hour Limit':'Лимит на 5 часов', 'Weekly Limit':'Недельный лимит',
   'Gemini Models':'Модели Gemini', 'Claude and GPT models':'Модели Claude и GPT',
-  'Let Claude Code notify Codenotch':'Разрешить Claude Code уведомлять Codenotch',
-  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Codenotch a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'При включении в файл настроек Claude Code добавляются строки, чтобы он сообщал Codenotch о начале работы, процессе, ожидании ответа и завершении сеанса. Благодаря этому кольцо вращается, а янтарное кольцо пульсирует.',
+  'Let Claude Code notify RunOptic':'Разрешить Claude Code уведомлять RunOptic',
+  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends RunOptic a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'При включении в файл настроек Claude Code добавляются строки, чтобы он сообщал RunOptic о начале работы, процессе, ожидании ответа и завершении сеанса. Благодаря этому кольцо вращается, а янтарное кольцо пульсирует.',
   'Notch':'Панель', 'Show':'Показывать', 'Always show':'Всегда показывать', 'Hide':'Скрыть',
   'Size':'Размер', 'Small':'Маленький', 'Medium':'Средний', 'Large':'Большой',
   'Takes the least room on the edge. Readable, but not from across the desk.':'Занимает минимум места у края. Читается вблизи, но не издалека.',
@@ -253,21 +404,21 @@ const RU_STATIC = {
   'A thinner ring for the weekly limit, drawn inside the main one. It shares the gap with the working indicator.':'Тонкое кольцо недельного лимита внутри основного. Оно делит зазор с индикатором работы.',
   'A thinner ring for the weekly limit, drawn around the main one, in the margin between the ring and the notch edge.':'Тонкое кольцо недельного лимита вокруг основного, в промежутке между кольцом и краем панели.',
   'The notch stays open with every reading visible.':'Выемка остаётся открытой, и все данные видны.',
-  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.':'Чёрная панель у правого края экрана с отдельным кольцом для каждого инструмента. При выключении панель исчезает, но Codenotch продолжает считать использование.',
+  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; RunOptic keeps counting your usage either way.':'Чёрная панель у правого края экрана с отдельным кольцом для каждого инструмента. При выключении панель исчезает, но RunOptic продолжает считать использование.',
   'Recentre':'По центру',
   'The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen\'s right-hand edge if the screen it was on has been unplugged.':'Капсулу также можно перетаскивать: захватите её и отпустите в любом месте, и она прилипнет к ближайшему краю того экрана, на котором вы её оставили. Кнопка «По центру» возвращает её на середину текущего края или на правый край главного экрана, если монитор, на котором она находилась, был отключен.',
   'The notch is back in the middle':'Панель возвращена в центр',
   'App':'Приложение', 'App icon':'Значок приложения', 'System tray':'Системный трей', 'Neither':'Ни то ни другое',
-  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.':'Небольшой значок рядом с часами. Щелчок правой кнопкой открывает это окно, обновляет данные или завершает работу Codenotch.',
-  'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.':'Значка в системном трее нет. Откройте Codenotch снова из меню «Пуск», чтобы вернуть эти настройки.',
-  'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.':'Оставлен включённым: панель скрыта, поэтому этот значок — единственный способ открыть Codenotch. Сначала включите панель, если хотите скрыть значок.',
-  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.':'Значок в панели задач оставлен включённым. При скрытой панели это единственный способ открыть окно или завершить работу Codenotch, поэтому оба элемента нельзя выключить одновременно.',
+  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits RunOptic.':'Небольшой значок рядом с часами. Щелчок правой кнопкой открывает это окно, обновляет данные или завершает работу RunOptic.',
+  'No icon in the system tray. Open RunOptic again from the Start menu to bring these settings back.':'Значка в системном трее нет. Откройте RunOptic снова из меню «Пуск», чтобы вернуть эти настройки.',
+  'Held on: the notch is hidden, so this icon is the only way left to reach RunOptic. Switch the notch back on first if you want to hide it.':'Оставлен включённым: панель скрыта, поэтому этот значок — единственный способ открыть RunOptic. Сначала включите панель, если хотите скрыть значок.',
+  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit RunOptic, so RunOptic will not let both of them be switched off at the same time.':'Значок в панели задач оставлен включённым. При скрытой панели это единственный способ открыть окно или завершить работу RunOptic, поэтому оба элемента нельзя выключить одновременно.',
   'Language':'Язык', 'Follow system':'Как в системе', 'English':'English', 'Русский':'Русский',
-  'Sets the language used by Codenotch. “Follow system” uses the language Windows itself is set to.':'Задаёт язык Codenotch. Вариант «Как в системе» использует язык Windows.',
-  'Open Codenotch at login':'Открывать Codenotch при входе',
-  'Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.':'Codenotch запускается при входе в систему и тихо работает в фоне до начала сеанса разработки. Если выключить эту настройку, Codenotch нужно запускать вручную.',
+  'Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.':'Задаёт язык RunOptic. Вариант «Как в системе» использует язык Windows.',
+  'Open RunOptic at login':'Открывать RunOptic при входе',
+  'RunOptic opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open RunOptic yourself.':'RunOptic запускается при входе в систему и тихо работает в фоне до начала сеанса разработки. Если выключить эту настройку, RunOptic нужно запускать вручную.',
   'Version':'Версия', 'Data folder':'Папка данных', 'Open folder':'Открыть папку',
-  'Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Все данные Codenotch хранятся в одной папке: настройки, журнал и папка «glyphs» для собственных значков. Открывается в Проводнике.',
+  'Everything RunOptic remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Все данные RunOptic хранятся в одной папке: настройки, журнал и папка «glyphs» для собственных значков. Открывается в Проводнике.',
   'App designed and developed by':'Приложение разработал', 'Saved':'Сохранено'
 };
 const ZH_STATIC = {
@@ -275,7 +426,7 @@ const ZH_STATIC = {
   'Accounts':'账号',
   'Appearance':'外观',
   'General':'通用',
-  'Quit Codenotch':'退出 Codenotch',
+  'Quit RunOptic':'退出 RunOptic',
   'Connected':'已连接',
   'Not connected':'未连接',
   'These have no ring to place. Switch one on and it joins the end of the list above.':'这些没有圆环可放。打开其中一个，它会接到上面列表的末尾。',
@@ -287,8 +438,8 @@ const ZH_STATIC = {
   'Weekly Limit':'每周额度',
   'Gemini Models':'Gemini 模型',
   'Claude and GPT models':'Claude 和 GPT 模型',
-  'Let Claude Code notify Codenotch':'允许 Claude Code 通知 Codenotch',
-  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Codenotch a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'开启此选项会在你的 Claude Code 设置文件中添加几行代码，以便 Claude Code 在会话开始、处理中、等待你回答以及完成时向 Codenotch 发送简短消息。这就是圆环旋转和琥珀色圆环闪烁的原因。',
+  'Let Claude Code notify RunOptic':'允许 Claude Code 通知 RunOptic',
+  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends RunOptic a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'开启此选项会在你的 Claude Code 设置文件中添加几行代码，以便 Claude Code 在会话开始、处理中、等待你回答以及完成时向 RunOptic 发送简短消息。这就是圆环旋转和琥珀色圆环闪烁的原因。',
   'Notch':'刘海',
   'Show':'显示',
   'Always show':'始终显示',
@@ -308,30 +459,30 @@ const ZH_STATIC = {
   'A thinner ring for the weekly limit, drawn inside the main one. It shares the gap with the working indicator.':'一条更细的每周额度圆环，画在主环内侧。和工作指示共用那个空隙。',
   'A thinner ring for the weekly limit, drawn around the main one, in the margin between the ring and the notch edge.':'一条更细的每周额度圆环，画在主环外侧，圆环和刘海边缘之间的空隙里。',
   'The notch stays open with every reading visible.':'刘海保持展开，所有读数都看得见。',
-  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.':'屏幕右侧边缘的黑色胶囊，每个工具对应一个圆环。关闭它后胶囊会消失；无论哪种情况，Codenotch 都会继续统计你的使用情况。',
+  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; RunOptic keeps counting your usage either way.':'屏幕右侧边缘的黑色胶囊，每个工具对应一个圆环。关闭它后胶囊会消失；无论哪种情况，RunOptic 都会继续统计你的使用情况。',
   'Recentre':'重新居中',
   'The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen\'s right-hand edge if the screen it was on has been unplugged.':'悬浮窗也可以拖动：将其拖放到任何地方，它会自动吸附到你放下它时所在屏幕的最近边缘。“重新居中”操作会将其放回当前所在边缘的中间；如果它所在的屏幕已被断开连接，则会将其放回主屏幕的右侧边缘。',
   'The notch is back in the middle':'刘海已回到中间',
   'App':'应用',
   'App icon':'应用图标',
   'Neither':'都不显示',
-  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.':'时钟旁边的小图标。右键点击它可打开此窗口、刷新读数或退出 Codenotch。',
-  'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.':'强制开启：刘海已被隐藏，因此该图标是访问 Codenotch 的唯一方式。如果你想隐藏此图标，请先重新开启刘海。',
-  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.':'任务栏图标已保持开启。在刘海隐藏的情况下，它是打开此窗口或退出 Codenotch 的唯一方式，因此 Codenotch 不允许同时关闭两者。',
+  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits RunOptic.':'时钟旁边的小图标。右键点击它可打开此窗口、刷新读数或退出 RunOptic。',
+  'Held on: the notch is hidden, so this icon is the only way left to reach RunOptic. Switch the notch back on first if you want to hide it.':'强制开启：刘海已被隐藏，因此该图标是访问 RunOptic 的唯一方式。如果你想隐藏此图标，请先重新开启刘海。',
+  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit RunOptic, so RunOptic will not let both of them be switched off at the same time.':'任务栏图标已保持开启。在刘海隐藏的情况下，它是打开此窗口或退出 RunOptic 的唯一方式，因此 RunOptic 不允许同时关闭两者。',
   'Language':'语言',
   'Follow system':'跟随系统',
-  'Sets the language used by Codenotch. “Follow system” uses the language Windows itself is set to.':'设置 Codenotch 使用的语言。“跟随系统”会使用 Windows 系统的默认语言设置。',
-  'Open Codenotch at login':'登录时打开 Codenotch',
-  'Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.':'每次登录此计算机时，Codenotch 都会自动打开，并在后台静默等待，直到编码会话开始。关闭此选项后，你需要手动打开 Codenotch。',
+  'Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.':'设置 RunOptic 使用的语言。“跟随系统”会使用 Windows 系统的默认语言设置。',
+  'Open RunOptic at login':'登录时打开 RunOptic',
+  'RunOptic opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open RunOptic yourself.':'每次登录此计算机时，RunOptic 都会自动打开，并在后台静默等待，直到编码会话开始。关闭此选项后，你需要手动打开 RunOptic。',
   'Version':'版本',
   'Data folder':'数据文件夹',
   'Open folder':'打开文件夹',
-  'Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Codenotch 记住的所有内容都保存在一个文件夹中：你的设置、它的日志文件，以及你可以在其中放入自定义图标的“glyphs”文件夹。在文件资源管理器中打开。',
+  'Everything RunOptic remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'RunOptic 记住的所有内容都保存在一个文件夹中：你的设置、它的日志文件，以及你可以在其中放入自定义图标的“glyphs”文件夹。在文件资源管理器中打开。',
   'App designed and developed by':'应用设计与开发',
   'Saved':'已保存',
   'System tray':'系统托盘',
   'Close':'关闭',
-  'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.':'系统托盘中无图标。请从“开始”菜单再次打开 Codenotch 以恢复这些设置。',
+  'No icon in the system tray. Open RunOptic again from the Start menu to bring these settings back.':'系统托盘中无图标。请从“开始”菜单再次打开 RunOptic 以恢复这些设置。',
   'Model data':'模型数据',
   'Show move handle':'显示移动手柄',
   'The arc above the notch. Hold it to carry the notch to another edge — Edge above does the same.':'刘海上的弧。按住它可以把刘海拖到另一条边 — 上面的「边缘」也一样。',
@@ -354,7 +505,7 @@ const ZH_HANT_STATIC = {
   'Accounts':'帳號',
   'Appearance':'外觀',
   'General':'一般',
-  'Quit Codenotch':'結束 Codenotch',
+  'Quit RunOptic':'結束 RunOptic',
   'Connected':'已連線',
   'Not connected':'未連線',
   'These have no ring to place. Switch one on and it joins the end of the list above.':'這些沒有圓環可放。開啟其中一個，它會接到上面列表的末尾。',
@@ -366,8 +517,8 @@ const ZH_HANT_STATIC = {
   'Weekly Limit':'每週額度',
   'Gemini Models':'Gemini 模型',
   'Claude and GPT models':'Claude 和 GPT 模型',
-  'Let Claude Code notify Codenotch':'允許 Claude Code 通知 Codenotch',
-  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Codenotch a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'開啟此選項會在你的 Claude Code 設定檔中加入幾行程式碼，以便 Claude Code 在工作階段開始、處理中、等待你回答以及完成時向 Codenotch 傳送簡短訊息。這就是圓環旋轉和琥珀色圓環閃爍的原因。',
+  'Let Claude Code notify RunOptic':'允許 Claude Code 通知 RunOptic',
+  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends RunOptic a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'開啟此選項會在你的 Claude Code 設定檔中加入幾行程式碼，以便 Claude Code 在工作階段開始、處理中、等待你回答以及完成時向 RunOptic 傳送簡短訊息。這就是圓環旋轉和琥珀色圓環閃爍的原因。',
   'Notch':'瀏海',
   'Show':'顯示',
   'Always show':'始終顯示',
@@ -387,30 +538,30 @@ const ZH_HANT_STATIC = {
   'A thinner ring for the weekly limit, drawn inside the main one. It shares the gap with the working indicator.':'一條更細的每週額度圓環，畫在主環內側。和工作指示共用那個空隙。',
   'A thinner ring for the weekly limit, drawn around the main one, in the margin between the ring and the notch edge.':'一條更細的每週額度圓環，畫在主環外側，圓環和瀏海邊緣之間的空隙裡。',
   'The notch stays open with every reading visible.':'瀏海保持展開，所有讀數都看得見。',
-  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.':'螢幕右側邊緣的黑色膠囊，每個工具對應一個圓環。關閉它後膠囊會消失；無論哪種情況，Codenotch 都會繼續統計你的使用情況。',
+  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; RunOptic keeps counting your usage either way.':'螢幕右側邊緣的黑色膠囊，每個工具對應一個圓環。關閉它後膠囊會消失；無論哪種情況，RunOptic 都會繼續統計你的使用情況。',
   'Recentre':'重新置中',
   'The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen\'s right-hand edge if the screen it was on has been unplugged.':'浮動視窗也可以拖動：將其拖放到任何地方，它會自動吸附到你放下它時所在螢幕的最近邊緣。「重新置中」會將它放回目前所在邊緣的中間；如果它所在的螢幕已拔除，則會放回主螢幕的右側邊緣。',
   'The notch is back in the middle':'瀏海已回到中間',
   'App':'App',
   'App icon':'App 圖示',
   'Neither':'都不顯示',
-  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.':'時鐘旁邊的小圖示。在它上面按右鍵可開啟此視窗、重新整理讀數或結束 Codenotch。',
-  'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.':'強制開啟：瀏海已被隱藏，因此該圖示是前往 Codenotch 的唯一方式。如果你想隱藏此圖示，請先重新開啟瀏海。',
-  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.':'工作列圖示已保持開啟。在瀏海隱藏的情況下，它是開啟此視窗或結束 Codenotch 的唯一方式，因此 Codenotch 不允許同時關閉兩者。',
+  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits RunOptic.':'時鐘旁邊的小圖示。在它上面按右鍵可開啟此視窗、重新整理讀數或結束 RunOptic。',
+  'Held on: the notch is hidden, so this icon is the only way left to reach RunOptic. Switch the notch back on first if you want to hide it.':'強制開啟：瀏海已被隱藏，因此該圖示是前往 RunOptic 的唯一方式。如果你想隱藏此圖示，請先重新開啟瀏海。',
+  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit RunOptic, so RunOptic will not let both of them be switched off at the same time.':'工作列圖示已保持開啟。在瀏海隱藏的情況下，它是開啟此視窗或結束 RunOptic 的唯一方式，因此 RunOptic 不允許同時關閉兩者。',
   'Language':'語言',
   'Follow system':'跟隨系統',
-  'Sets the language used by Codenotch. “Follow system” uses the language Windows itself is set to.':'設定 Codenotch 使用的語言。「跟隨系統」會使用 Windows 本身的語言設定。',
-  'Open Codenotch at login':'登入時開啟 Codenotch',
-  'Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.':'每次登入這部電腦時，Codenotch 都會自動開啟，並在背景靜默等待，直到編碼工作階段開始。關閉此選項後，你需要手動開啟 Codenotch。',
+  'Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.':'設定 RunOptic 使用的語言。「跟隨系統」會使用 Windows 本身的語言設定。',
+  'Open RunOptic at login':'登入時開啟 RunOptic',
+  'RunOptic opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open RunOptic yourself.':'每次登入這部電腦時，RunOptic 都會自動開啟，並在背景靜默等待，直到編碼工作階段開始。關閉此選項後，你需要手動開啟 RunOptic。',
   'Version':'版本',
   'Data folder':'資料資料夾',
   'Open folder':'開啟資料夾',
-  'Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Codenotch 記住的所有內容都儲存在一個資料夾中：你的設定、它的日誌檔，以及你可以放入自訂圖示的「glyphs」資料夾。在檔案總管中開啟。',
+  'Everything RunOptic remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'RunOptic 記住的所有內容都儲存在一個資料夾中：你的設定、它的日誌檔，以及你可以放入自訂圖示的「glyphs」資料夾。在檔案總管中開啟。',
   'App designed and developed by':'App 設計與開發',
   'Saved':'已儲存',
   'System tray':'系統匣',
   'Close':'關閉',
-  'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.':'系統匣中無圖示。請從「開始」功能表再次開啟 Codenotch 以還原這些設定。',
+  'No icon in the system tray. Open RunOptic again from the Start menu to bring these settings back.':'系統匣中無圖示。請從「開始」功能表再次開啟 RunOptic 以還原這些設定。',
   'Model data':'模型資料',
   'Show move handle':'顯示移動手柄',
   'The arc above the notch. Hold it to carry the notch to another edge — Edge above does the same.':'瀏海上的弧。按住它可以把瀏海拖到另一條邊 — 上面的「邊緣」也一樣。',
@@ -435,7 +586,7 @@ const JA_STATIC = {
   'Accounts':'アカウント',
   'Appearance':'外観',
   'General':'一般',
-  'Quit Codenotch':'Codenotch を終了',
+  'Quit RunOptic':'RunOptic を終了',
   'Connected':'接続済み',
   'Not connected':'未接続',
   'These have no ring to place. Switch one on and it joins the end of the list above.':'これらには配置するリングがありません。オンにすると、上の一覧の末尾に加わります。',
@@ -447,8 +598,8 @@ const JA_STATIC = {
   'Weekly Limit':'週間の上限',
   'Gemini Models':'Gemini モデル',
   'Claude and GPT models':'Claude と GPT のモデル',
-  'Let Claude Code notify Codenotch':'Claude Code から Codenotch に通知を送信する',
-  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Codenotch a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'これをオンにすると、Claude Code の設定ファイルに数行が追加され、セッションの開始時、処理中、回答の待機中、および終了時に Claude Code が Codenotch に短いメッセージを送信するようになります。これにより、リングが回転したり、琥珀色のリングが点滅したりします。',
+  'Let Claude Code notify RunOptic':'Claude Code から RunOptic に通知を送信する',
+  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends RunOptic a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'これをオンにすると、Claude Code の設定ファイルに数行が追加され、セッションの開始時、処理中、回答の待機中、および終了時に Claude Code が RunOptic に短いメッセージを送信するようになります。これにより、リングが回転したり、琥珀色のリングが点滅したりします。',
   'Notch':'ノッチ',
   'Show':'表示',
   'Always show':'常に表示',
@@ -468,30 +619,30 @@ const JA_STATIC = {
   'A thinner ring for the weekly limit, drawn inside the main one. It shares the gap with the working indicator.':'週間の上限を細いリングで主リングの内側に描きます。作業中インジケータと同じ隙間を共有します。',
   'A thinner ring for the weekly limit, drawn around the main one, in the margin between the ring and the notch edge.':'週間の上限を細いリングで主リングの外側、リングとノッチの端の間の余白に描きます。',
   'The notch stays open with every reading visible.':'ノッチは開いたままで、すべての読み取りが見えます。',
-  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.':'画面の右端にある黒いピルには、ツールごとに1つのリングが表示されます。オフにするとピルは消えますが、どちらにしても Codenotch は使用量のカウントを続けます。',
+  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; RunOptic keeps counting your usage either way.':'画面の右端にある黒いピルには、ツールごとに1つのリングが表示されます。オフにするとピルは消えますが、どちらにしても RunOptic は使用量のカウントを続けます。',
   'Recentre':'中央に戻す',
   'The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen\'s right-hand edge if the screen it was on has been unplugged.':'ピルはドラッグすることもできます。掴んで任意の場所にドロップすると、ドロップした画面の最も近い端にスナップします。「中央に戻す」を使うと、現在配置されている端の中央に戻ります。もし配置されていた画面が取り外されている場合は、メイン画面の右端に戻ります。',
   'The notch is back in the middle':'ノッチが中央に戻りました',
   'App':'アプリ',
   'App icon':'アプリアイコン',
   'Neither':'どちらにも出さない',
-  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.':'時計のそばにある小さなアイコンです。右クリックするとこのウィンドウを開いたり、読み取りを更新したり、Codenotch を終了したりできます。',
-  'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.':'保持オン: ノッチが非表示になっているため、Codenotch にアクセスできるのはこのアイコンだけです。このアイコンを非表示にしたい場合は、先にノッチをオンに戻してください。',
-  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.':'タスクバーアイコンはオンのままです。ノッチが非表示の場合、このウィンドウを開いたり Codenotch を終了したりする唯一の手段となるため、Codenotch は両方を同時にオフにすることを許可しません。',
+  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits RunOptic.':'時計のそばにある小さなアイコンです。右クリックするとこのウィンドウを開いたり、読み取りを更新したり、RunOptic を終了したりできます。',
+  'Held on: the notch is hidden, so this icon is the only way left to reach RunOptic. Switch the notch back on first if you want to hide it.':'保持オン: ノッチが非表示になっているため、RunOptic にアクセスできるのはこのアイコンだけです。このアイコンを非表示にしたい場合は、先にノッチをオンに戻してください。',
+  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit RunOptic, so RunOptic will not let both of them be switched off at the same time.':'タスクバーアイコンはオンのままです。ノッチが非表示の場合、このウィンドウを開いたり RunOptic を終了したりする唯一の手段となるため、RunOptic は両方を同時にオフにすることを許可しません。',
   'Language':'言語',
   'Follow system':'システムに従う',
-  'Sets the language used by Codenotch. “Follow system” uses the language Windows itself is set to.':'Codenotch で使用する言語を設定します。「システムに従う」は、Windows 自体に設定されている言語を使用します。',
-  'Open Codenotch at login':'ログイン時に Codenotch を開く',
-  'Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.':'このコンピューターにサインインするたびに Codenotch が自動的に開き、コーディングセッションが始まるまでバックグラウンドで静かに待機します。オフにすると、Codenotch を手動で開く必要があります。',
+  'Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.':'RunOptic で使用する言語を設定します。「システムに従う」は、Windows 自体に設定されている言語を使用します。',
+  'Open RunOptic at login':'ログイン時に RunOptic を開く',
+  'RunOptic opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open RunOptic yourself.':'このコンピューターにサインインするたびに RunOptic が自動的に開き、コーディングセッションが始まるまでバックグラウンドで静かに待機します。オフにすると、RunOptic を手動で開く必要があります。',
   'Version':'バージョン',
   'Data folder':'データフォルダー',
   'Open folder':'フォルダーを開く',
-  'Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Codenotch が記憶するすべてのデータは1つのフォルダーに保存されます。設定、ログファイル、そして独自のアイコンをドロップできる「glyphs」フォルダーです。エクスプローラーで開きます。',
+  'Everything RunOptic remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'RunOptic が記憶するすべてのデータは1つのフォルダーに保存されます。設定、ログファイル、そして独自のアイコンをドロップできる「glyphs」フォルダーです。エクスプローラーで開きます。',
   'App designed and developed by':'デザインと開発',
   'Saved':'保存しました',
   'System tray':'システムトレイ',
   'Close':'閉じる',
-  'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.':'システムトレイにアイコンを表示しません。これらの設定に戻るには、スタートメニューから Codenotch をもう一度開いてください。',
+  'No icon in the system tray. Open RunOptic again from the Start menu to bring these settings back.':'システムトレイにアイコンを表示しません。これらの設定に戻るには、スタートメニューから RunOptic をもう一度開いてください。',
   'Model data':'モデルのデータ'
 };
 const KO_STATIC = {
@@ -499,7 +650,7 @@ const KO_STATIC = {
   'Accounts':'계정',
   'Appearance':'모양',
   'General':'일반',
-  'Quit Codenotch':'Codenotch 종료',
+  'Quit RunOptic':'RunOptic 종료',
   'Connected':'연결됨',
   'Not connected':'연결되지 않음',
   'These have no ring to place. Switch one on and it joins the end of the list above.':'여기에는 배치할 링이 없습니다. 하나를 켜면 위 목록의 끝에 추가됩니다.',
@@ -511,8 +662,8 @@ const KO_STATIC = {
   'Weekly Limit':'주간 제한',
   'Gemini Models':'Gemini 모델',
   'Claude and GPT models':'Claude 및 GPT 모델',
-  'Let Claude Code notify Codenotch':'Claude Code가 Codenotch에 알리도록 허용',
-  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Codenotch a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'이것을 켜면 Claude Code 설정 파일에 몇 줄이 추가되어 세션이 시작될 때, 작업 중일 때, 사용자의 응답을 기다릴 때, 그리고 완료될 때 Claude Code가 Codenotch에 짧은 메시지를 보냅니다. 이것이 링을 회전하게 하고 호박색 링을 깜박이게 하는 원리입니다.',
+  'Let Claude Code notify RunOptic':'Claude Code가 RunOptic에 알리도록 허용',
+  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends RunOptic a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'이것을 켜면 Claude Code 설정 파일에 몇 줄이 추가되어 세션이 시작될 때, 작업 중일 때, 사용자의 응답을 기다릴 때, 그리고 완료될 때 Claude Code가 RunOptic에 짧은 메시지를 보냅니다. 이것이 링을 회전하게 하고 호박색 링을 깜박이게 하는 원리입니다.',
   'Notch':'노치',
   'Show':'표시',
   'Always show':'항상 표시',
@@ -545,30 +696,30 @@ const KO_STATIC = {
   'Lies flat along the bottom edge, with the card opening above it.':'화면 아래쪽 가장자리에 가로로 눕고, 카드는 위로 열립니다.',
   'Which screen the notch lives on. Dragging it onto another screen sets this too.':'노치를 표시할 화면입니다. 노치를 다른 화면으로 끌어다 놓아도 이 값이 바뀝니다.',
   'this screen cannot be remembered by name':'이 화면은 이름으로 기억할 수 없습니다',
-  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.':'화면 오른쪽 가장자리에 있는 검은색 필로, 도구당 하나의 링이 있습니다. 끄면 필이 사라지지만, 어느 쪽이든 Codenotch는 사용량을 계속 계산합니다.',
+  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; RunOptic keeps counting your usage either way.':'화면 오른쪽 가장자리에 있는 검은색 필로, 도구당 하나의 링이 있습니다. 끄면 필이 사라지지만, 어느 쪽이든 RunOptic는 사용량을 계속 계산합니다.',
   'Recentre':'가운데로 되돌리기',
   'The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen\'s right-hand edge if the screen it was on has been unplugged.':'필(pill)은 드래그할 수도 있습니다. 필을 잡아서 아무 곳에나 놓으면, 놓은 화면의 가장 가까운 가장자리에 스냅됩니다. \'가운데로 되돌리기\'를 사용하면 현재 위치한 가장자리의 중앙으로 돌아가며, 필이 있던 화면이 연결 해제된 경우에는 기본 화면의 오른쪽 가장자리로 돌아갑니다.',
   'The notch is back in the middle':'노치가 중앙으로 돌아왔습니다',
   'App':'앱',
   'App icon':'앱 아이콘',
   'Neither':'표시 안 함',
-  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.':'시계 옆에 있는 작은 아이콘입니다. 마우스 오른쪽 버튼을 클릭하면 이 창이 열리거나, 읽기 값을 새로 고치거나, Codenotch를 종료할 수 있습니다.',
-  'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.':'유지됨: 노치가 숨겨져 있으므로 이 아이콘이 Codenotch에 접근할 수 있는 유일한 방법입니다. 이 아이콘을 숨기려면 먼저 노치를 다시 켜십시오.',
-  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.':'작업 표시줄 아이콘이 켜진 상태로 유지되었습니다. 노치가 숨겨진 상태에서는 이 창을 열거나 Codenotch를 종료하는 유일한 방법이므로, Codenotch는 두 가지를 동시에 끄는 것을 허용하지 않습니다.',
+  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits RunOptic.':'시계 옆에 있는 작은 아이콘입니다. 마우스 오른쪽 버튼을 클릭하면 이 창이 열리거나, 읽기 값을 새로 고치거나, RunOptic를 종료할 수 있습니다.',
+  'Held on: the notch is hidden, so this icon is the only way left to reach RunOptic. Switch the notch back on first if you want to hide it.':'유지됨: 노치가 숨겨져 있으므로 이 아이콘이 RunOptic에 접근할 수 있는 유일한 방법입니다. 이 아이콘을 숨기려면 먼저 노치를 다시 켜십시오.',
+  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit RunOptic, so RunOptic will not let both of them be switched off at the same time.':'작업 표시줄 아이콘이 켜진 상태로 유지되었습니다. 노치가 숨겨진 상태에서는 이 창을 열거나 RunOptic를 종료하는 유일한 방법이므로, RunOptic는 두 가지를 동시에 끄는 것을 허용하지 않습니다.',
   'Language':'언어',
   'Follow system':'시스템 따르기',
-  'Sets the language used by Codenotch. “Follow system” uses the language Windows itself is set to.':'Codenotch에서 사용할 언어를 설정합니다. "시스템 따르기"는 Windows 자체에 설정된 언어를 사용합니다.',
-  'Open Codenotch at login':'로그인 시 Codenotch 열기',
-  'Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.':'이 컴퓨터에 로그인할 때마다 Codenotch가 자동으로 열리며, 코딩 세션이 시작될 때까지 백그라운드에서 조용히 대기합니다. 이 기능을 끄면 Codenotch를 직접 열어야 합니다.',
+  'Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.':'RunOptic에서 사용할 언어를 설정합니다. "시스템 따르기"는 Windows 자체에 설정된 언어를 사용합니다.',
+  'Open RunOptic at login':'로그인 시 RunOptic 열기',
+  'RunOptic opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open RunOptic yourself.':'이 컴퓨터에 로그인할 때마다 RunOptic가 자동으로 열리며, 코딩 세션이 시작될 때까지 백그라운드에서 조용히 대기합니다. 이 기능을 끄면 RunOptic를 직접 열어야 합니다.',
   'Version':'버전',
   'Data folder':'데이터 폴더',
   'Open folder':'폴더 열기',
-  'Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Codenotch가 기억하는 모든 항목은 하나의 폴더에 저장됩니다: 설정, 로그 파일, 그리고 사용자 지정 아이콘을 넣을 수 있는 "glyphs" 폴더가 있습니다. 파일 탐색기에서 열립니다.',
+  'Everything RunOptic remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'RunOptic가 기억하는 모든 항목은 하나의 폴더에 저장됩니다: 설정, 로그 파일, 그리고 사용자 지정 아이콘을 넣을 수 있는 "glyphs" 폴더가 있습니다. 파일 탐색기에서 열립니다.',
   'App designed and developed by':'앱 디자인 및 개발',
   'Saved':'저장됨',
   'System tray':'시스템 트레이',
   'Close':'닫기',
-  'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.':'시스템 트레이에 아이콘이 없습니다. 이 설정을 다시 가져오려면 시작 메뉴에서 Codenotch를 다시 여세요.',
+  'No icon in the system tray. Open RunOptic again from the Start menu to bring these settings back.':'시스템 트레이에 아이콘이 없습니다. 이 설정을 다시 가져오려면 시작 메뉴에서 RunOptic를 다시 여세요.',
   'Model data':'모델 데이터'
 };
 const UK_STATIC = {
@@ -576,7 +727,7 @@ const UK_STATIC = {
   'Accounts':'Акаунти',
   'Appearance':'Зовнішній вигляд',
   'General':'Загальні',
-  'Quit Codenotch':'Вийти з Codenotch',
+  'Quit RunOptic':'Вийти з RunOptic',
   'Connected':'Підключені',
   'Not connected':'Не підключені',
   'These have no ring to place. Switch one on and it joins the end of the list above.':'У цих немає кільця для розміщення. Увімкніть будь-який — і він стане в кінець списку вище.',
@@ -588,8 +739,8 @@ const UK_STATIC = {
   'Weekly Limit':'Тижневий ліміт',
   'Gemini Models':'Моделі Gemini',
   'Claude and GPT models':'Моделі Claude і GPT',
-  'Let Claude Code notify Codenotch':'Дозволити Claude Code сповіщати Codenotch',
-  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Codenotch a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'Коли це ввімкнено, у файл налаштувань Claude Code додається кілька рядків, щоб він надсилав Codenotch коротке повідомлення на початку сесії, під час роботи, коли чекає на вашу відповідь і коли завершує. Саме завдяки цьому кільце обертається, а бурштинове пульсує.',
+  'Let Claude Code notify RunOptic':'Дозволити Claude Code сповіщати RunOptic',
+  'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends RunOptic a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.':'Коли це ввімкнено, у файл налаштувань Claude Code додається кілька рядків, щоб він надсилав RunOptic коротке повідомлення на початку сесії, під час роботи, коли чекає на вашу відповідь і коли завершує. Саме завдяки цьому кільце обертається, а бурштинове пульсує.',
   'Notch':'Виріз',
   'Show':'Показувати',
   'Always show':'Показувати завжди',
@@ -623,30 +774,30 @@ const UK_STATIC = {
   'Which screen the notch lives on. Dragging it onto another screen sets this too.':'На якому екрані живе виріз. Перетягування на інший екран теж змінює цей вибір.',
   'this screen cannot be remembered by name':'цей екран неможливо запамʼятати за назвою',
   'The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. If it has ended up somewhere you cannot see it — off a screen you have unplugged, say — this puts it back in the middle of the main screen\'s right-hand edge.':'Панель можна й перетягувати: візьміть її та відпустіть будь-де — вона прилипне до найближчого краю того екрана, на який ви її кинули. Якщо вона опинилась там, де ви її не бачите (скажімо, за межами екрана, який ви відʼєднали), ця кнопка повертає її на середину правого краю основного екрана.',
-  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.':'Чорна панель біля правого краю екрана, по кільцю на кожен інструмент. Якщо вимкнути, панель зникне — але використання Codenotch рахує в будь-якому разі.',
+  'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; RunOptic keeps counting your usage either way.':'Чорна панель біля правого краю екрана, по кільцю на кожен інструмент. Якщо вимкнути, панель зникне — але використання RunOptic рахує в будь-якому разі.',
   'Recentre':'Центрувати',
   'The pill can be dragged up and down the right-hand edge. If it has ended up somewhere you cannot see it — off the bottom of a screen you have unplugged, say — this drops it back into the middle of the edge.':'Панель можна перетягувати вгору й вниз уздовж правого краю. Якщо вона опинилась там, де ви її не бачите (скажімо, нижче за край екрана, який ви відʼєднали), ця кнопка повертає її на середину краю.',
   'The notch is back in the middle':'Виріз повернувся в центр',
   'App':'Застосунок',
   'App icon':'Значок застосунку',
   'Neither':'Ніде',
-  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.':'Невеликий значок унизу біля годинника. Клацання правою кнопкою відкриває це вікно, оновлює показники або завершує роботу Codenotch.',
-  'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.':'Лишено ввімкненим: виріз приховано, тож цей значок — єдиний спосіб дістатися до Codenotch. Щоб сховати значок, спершу увімкніть виріз назад.',
-  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.':'Значок на панелі задач лишено ввімкненим. Коли виріз приховано, це єдиний спосіб відкрити це вікно чи завершити роботу Codenotch, тож вимкнути обидва одночасно застосунок не дасть.',
+  'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits RunOptic.':'Невеликий значок унизу біля годинника. Клацання правою кнопкою відкриває це вікно, оновлює показники або завершує роботу RunOptic.',
+  'Held on: the notch is hidden, so this icon is the only way left to reach RunOptic. Switch the notch back on first if you want to hide it.':'Лишено ввімкненим: виріз приховано, тож цей значок — єдиний спосіб дістатися до RunOptic. Щоб сховати значок, спершу увімкніть виріз назад.',
+  'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit RunOptic, so RunOptic will not let both of them be switched off at the same time.':'Значок на панелі задач лишено ввімкненим. Коли виріз приховано, це єдиний спосіб відкрити це вікно чи завершити роботу RunOptic, тож вимкнути обидва одночасно застосунок не дасть.',
   'Language':'Мова',
   'Follow system':'Як у системі',
-  'Sets the language used by Codenotch. “Follow system” uses the language Windows itself is set to.':'Задає мову Codenotch. Варіант «Як у системі» бере мову, вибрану в самій Windows.',
-  'Open Codenotch at login':'Відкривати Codenotch під час входу',
-  'Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.':'Codenotch відкривається сам щоразу, коли ви входите на цей компʼютер, і тихо чекає у фоні, доки не почнеться сесія розробки. Якщо вимкнути, відкривати Codenotch доведеться вручну.',
+  'Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.':'Задає мову RunOptic. Варіант «Як у системі» бере мову, вибрану в самій Windows.',
+  'Open RunOptic at login':'Відкривати RunOptic під час входу',
+  'RunOptic opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open RunOptic yourself.':'RunOptic відкривається сам щоразу, коли ви входите на цей компʼютер, і тихо чекає у фоні, доки не почнеться сесія розробки. Якщо вимкнути, відкривати RunOptic доведеться вручну.',
   'Version':'Версія',
   'Data folder':'Тека даних',
   'Open folder':'Відкрити теку',
-  'Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Усе, що памʼятає Codenotch, лежить в одній теці: ваші налаштування, його журнал і тека «glyphs», куди можна покласти власні значки. Відкривається у Провіднику.',
+  'Everything RunOptic remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.':'Усе, що памʼятає RunOptic, лежить в одній теці: ваші налаштування, його журнал і тека «glyphs», куди можна покласти власні значки. Відкривається у Провіднику.',
   'App designed and developed by':'Дизайн і розробка застосунку —',
   'Saved':'Збережено',
   'System tray':'Область сповіщень',
   'Close':'Закрити',
-  'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.':'Значка в області сповіщень немає. Відкрийте Codenotch знову з меню «Пуск», щоб повернути ці налаштування.',
+  'No icon in the system tray. Open RunOptic again from the Start menu to bring these settings back.':'Значка в області сповіщень немає. Відкрийте RunOptic знову з меню «Пуск», щоб повернути ці налаштування.',
   'Model data':'Дані моделі'
 };
 const STATIC_TEXT = { ru: RU_STATIC, zh: ZH_STATIC, 'zh-Hant': ZH_HANT_STATIC, ja: JA_STATIC, ko: KO_STATIC, uk: UK_STATIC };
@@ -728,27 +879,69 @@ function toast(msg){
    Dark 1 with white text in light mode. Both are asked for again whenever the window comes forward,
    so an accent changed in Settings shows up without reopening this one. */
 const dark = matchMedia('(prefers-color-scheme: dark)');
-let palette = null;
+const DEFAULT_THEME={
+  preset:'runoptic',accent:'#A7F432',background:'#0B0D10',surface:'#11161C',
+  text:'#F4F7F8',muted:'#7F8995',warning:'#F6B84A',critical:'#FF5F68'
+};
+let theme={...DEFAULT_THEME};
+function safeHex(value,fallback){
+  return typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(value)?value.toUpperCase():fallback;
+}
+function readTheme(raw){
+  if(!raw||typeof raw!=='object') return {...DEFAULT_THEME};
+  const preset=raw.preset==='custom'?'custom':'runoptic';
+  if(preset==='runoptic') return {...DEFAULT_THEME};
+  return {
+    preset,
+    accent:safeHex(raw.accent,DEFAULT_THEME.accent),
+    background:safeHex(raw.background,DEFAULT_THEME.background),
+    surface:safeHex(raw.surface,DEFAULT_THEME.surface),
+    text:safeHex(raw.text,DEFAULT_THEME.text),
+    muted:safeHex(raw.muted,DEFAULT_THEME.muted),
+    warning:safeHex(raw.warning,DEFAULT_THEME.warning),
+    critical:safeHex(raw.critical,DEFAULT_THEME.critical)
+  };
+}
 function applyAccent(){
-  const root = document.documentElement.style;
-  if(!palette){ root.removeProperty('--accent'); root.removeProperty('--on-accent'); return; }
-  root.setProperty('--accent', dark.matches ? palette[1] : palette[4]);
-  root.setProperty('--on-accent', dark.matches ? '#000000' : '#ffffff');
+  const root=document.documentElement.style;
+  root.setProperty('--accent',theme.accent);
+  root.setProperty('--on-accent',theme.background);
+  root.setProperty('--ro-bg',theme.background);
+  root.setProperty('--ro-surface',theme.surface);
+  root.setProperty('--ro-text',theme.text);
+  root.setProperty('--ro-muted',theme.muted);
+  root.setProperty('--ro-warning',theme.warning);
+  root.setProperty('--ro-critical',theme.critical);
+  root.setProperty('--text',theme.text);
+  root.setProperty('--text2',theme.muted);
+  root.setProperty('--pane',theme.background);
+  root.setProperty('--side',theme.surface);
+  root.setProperty('--group',theme.surface);
+}
+function renderTheme(){
+  applyAccent();
+  for(const b of document.querySelectorAll('#seg-theme button')){
+    const on=b.dataset.v===theme.preset;
+    b.classList.toggle('on',on);
+    b.setAttribute('aria-pressed',on?'true':'false');
+  }
+  const custom=document.getElementById('theme-custom');
+  custom.hidden=theme.preset!=='custom';
+  for(const input of document.querySelectorAll('[data-theme-key]')){
+    const key=input.dataset.themeKey;
+    if(theme[key]&&input.value.toUpperCase()!==theme[key]) input.value=theme[key];
+  }
 }
 function loadLook(){
-  call('get_system_look', undefined, null).then(look => {
-    if(!look) return;
-    document.body.classList.toggle('solid', !look.mica);
-    if(Array.isArray(look.accent) && look.accent.length >= 5) palette = look.accent;
-    applyAccent();
-  });
+  document.body.classList.add('solid');
+  renderTheme();
 }
 dark.addEventListener('change', applyAccent);
 
 /* ---- the sidebar -------------------------------------------------------- */
 const TABS = ['accounts', 'appearance', 'general'];
 const TITLES = { accounts:'Accounts', appearance:'Appearance', general:'General' };
-const TAB_KEY = 'codenotch.settings.pane';
+const TAB_KEY = 'runoptic.settings.pane';
 let curTab = TABS[0];
 function showTab(id, moveFocus){
   if(TABS.indexOf(id) < 0) id = TABS[0];
@@ -848,7 +1041,7 @@ function drawSwitch(el, s){
   el.disabled = s.busy;
 }
 const hooks = remote('get_hooks_installed', 'set_hooks_installed', 'The Claude Code messages', () => renderAccounts());
-const autostart = remote('get_autostart', 'set_autostart', 'Open Codenotch at login', () => drawSwitch(document.getElementById('sw-autostart'), autostart));
+const autostart = remote('get_autostart', 'set_autostart', 'Open RunOptic at login', () => drawSwitch(document.getElementById('sw-autostart'), autostart));
 document.getElementById('sw-autostart').addEventListener('click', () => autostart.toggle());
 const moveHandle = remote('get_move_handle', 'set_move_handle', 'Show move handle', () => drawSwitch(document.getElementById('sw-move'), moveHandle));
 document.getElementById('sw-move').addEventListener('click', () => moveHandle.toggle());
@@ -861,7 +1054,7 @@ let notchSlots = [];
 const AG_LIMITS = [['automatic', 'Automatic'], ['5h', '5-Hour Limit'], ['weekly', 'Weekly Limit']];
 const AG_MODELS = [['gemini', 'Gemini Models'], ['3p', 'Claude and GPT models']];
 let agPrefs = { limit:'automatic', model:'gemini' };
-const HOOKS_WHY = 'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Codenotch a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.';
+const HOOKS_WHY = 'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends RunOptic a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.';
 const ONE_STAYS = 'One provider always stays ticked, so the pill is never empty.';
 const NO_RING = 'These have no ring to place. Switch one on and it joins the end of the list above.';
 
@@ -888,9 +1081,9 @@ function accountBlock(p, isOn, locked){
       + '<div class="acct-sub"><span>' + esc(ui('Model data', 'Model data')) + '</span>' + agSelect('model', AG_MODELS, agPrefs.model) + '</div>';
   }
   if(p.id === 'claude'){
-    h += '<div class="acct-sub"><span>' + esc(ui('Let Claude Code notify Codenotch', 'Let Claude Code notify Codenotch')) + '</span>'
+    h += '<div class="acct-sub"><span>' + esc(ui('Let Claude Code notify RunOptic', 'Let Claude Code notify RunOptic')) + '</span>'
       + '<button class="switch' + (hooks.value ? ' on' : '') + '" role="switch" aria-checked="' + hooks.value + '" data-remote="hooks"'
-      + (hooks.busy ? ' disabled' : '') + ' aria-label="' + esc(ui('Let Claude Code notify Codenotch', 'Let Claude Code notify Codenotch')) + '"></button></div>'
+      + (hooks.busy ? ' disabled' : '') + ' aria-label="' + esc(ui('Let Claude Code notify RunOptic', 'Let Claude Code notify RunOptic')) + '"></button></div>'
       + '<div class="acct-detail">' + esc(ui(HOOKS_WHY, HOOKS_WHY)) + '</div>';
   }
   return h + '</div>';
@@ -949,11 +1142,11 @@ accountsPane.addEventListener('change', e => {
    Two choices, one command. Hiding both would leave nothing to click, so Rust keeps the tray icon
    whenever the notch is hidden, and its answer says what was actually stored. */
 const SHOW_WHY = 'The notch stays open with every reading visible.';
-const HIDE_WHY = 'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; Codenotch keeps counting your usage either way.';
-const TRAY_WHY = 'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits Codenotch.';
-const NO_TRAY_WHY = 'No icon in the system tray. Open Codenotch again from the Start menu to bring these settings back.';
-const HELD_ON = 'Held on: the notch is hidden, so this icon is the only way left to reach Codenotch. Switch the notch back on first if you want to hide it.';
-const KEPT_ON = 'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit Codenotch, so Codenotch will not let both of them be switched off at the same time.';
+const HIDE_WHY = 'The black pill against the right-hand edge of the screen, with one ring per tool. Turn it off and the pill disappears; RunOptic keeps counting your usage either way.';
+const TRAY_WHY = 'The small icon down by the clock. Right-clicking it opens this window, refreshes the readings, or quits RunOptic.';
+const NO_TRAY_WHY = 'No icon in the system tray. Open RunOptic again from the Start menu to bring these settings back.';
+const HELD_ON = 'Held on: the notch is hidden, so this icon is the only way left to reach RunOptic. Switch the notch back on first if you want to hide it.';
+const KEPT_ON = 'The taskbar icon has been kept on. With the notch hidden it is the only way left to open this window or to quit RunOptic, so RunOptic will not let both of them be switched off at the same time.';
 let flags = { notch:true, tray:true }, flagsBusy = false, flagsCorrected = false;
 
 function readFlags(v){
@@ -1043,6 +1236,36 @@ document.getElementById('seg-size').addEventListener('click', e => {
     })
     .then(() => { sizeBusy = false; renderSize(); });
 });
+
+/* ---- Appearance: theme --------------------------------------------------- */
+let themeSaveTimer=0;
+function saveTheme(next, immediate){
+  theme=readTheme(next);
+  renderTheme();
+  const commit=()=>invoke('set_theme',{theme})
+    .then(v=>{theme=readTheme(v);renderTheme();toast();})
+    .catch(err=>strip('set_theme failed: '+errText(err)));
+  clearTimeout(themeSaveTimer);
+  if(immediate) commit(); else themeSaveTimer=setTimeout(commit,120);
+}
+document.getElementById('seg-theme').addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(!b||b.dataset.v===theme.preset) return;
+  if(b.dataset.v==='runoptic') saveTheme({...DEFAULT_THEME},true);
+  else saveTheme({...theme,preset:'custom'},true);
+});
+for(const input of document.querySelectorAll('[data-theme-key]')){
+  input.addEventListener('input',e=>{
+    saveTheme({...theme,preset:'custom',[e.target.dataset.themeKey]:e.target.value},false);
+  });
+}
+document.getElementById('btn-theme-reset').addEventListener('click',()=>{
+  saveTheme({...DEFAULT_THEME,preset:'custom'},true);
+});
+try{
+  window.__TAURI__.event.listen('theme',e=>{theme=readTheme(e.payload);renderTheme();});
+}catch(e){ /* theme still works through direct command replies */ }
+
 
 /* ---- Appearance: edge and screen -------------------------------------------
    The notch stands upright on the left and right edges and lies flat on the top and bottom ones. The
@@ -1193,6 +1416,7 @@ function renderAll(){
   renderAccounts();
   renderFlags();
   renderSize();
+  renderTheme();
   renderEdge();
   renderScreens();
   renderWeekly();
@@ -1204,6 +1428,7 @@ function boot(){
   showTab(savedTab());
   setUiLanguage('auto');
   loadLook();
+  call('get_theme', undefined, DEFAULT_THEME).then(v => { theme=readTheme(v); renderTheme(); });
   refreshOptions();
   call('get_notch_slots', undefined, []).then(v => {
     notchSlots = Array.isArray(v) ? v.filter(x => x && typeof x.provider === 'string').map(x => ({ provider:x.provider })) : [];
@@ -1213,6 +1438,7 @@ function boot(){
   call('get_glyphs', undefined, null).then(g => { if(g && typeof g === 'object'){ glyphs = g; renderAccounts(); } });
   try { window.__TAURI__.event.listen('glyphs', e => { if(e.payload){ glyphs = e.payload; renderAccounts(); } }); } catch(e) { /* the letters stay */ }
   call('get_scale', undefined, null).then(v => { if(typeof v === 'number') notchSize = v; renderSize(); });
+  call('get_theme', undefined, DEFAULT_THEME).then(v => { theme=readTheme(v); renderTheme(); });
   call('get_notch_edge', undefined, null).then(v => { if(typeof v === 'string') notchEdge = v; renderEdge(); });
   refreshScreens();
   call('get_weekly_ring', undefined, null).then(v => { if(typeof v === 'string') weeklyRing = v; renderWeekly(); });

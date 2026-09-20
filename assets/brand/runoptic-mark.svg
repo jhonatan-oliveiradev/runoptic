@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">RunOptic mark</title>
+<desc id="desc">Optical telemetry aperture with a central signal node and four calibration ticks.</desc>
+<rect x="40" y="40" width="432" height="432" rx="104" fill="#0B0D10" stroke="#242A32" stroke-width="6"/>
+<g fill="none" stroke="#F4F7F8" stroke-width="24" stroke-linecap="round">
+  <path d="M349.6 178.4A118 118 0 0 1 333.6 349.6"/>
+  <path d="M333.6 349.6A118 118 0 0 1 162.4 333.6"/>
+  <path d="M162.4 333.6A118 118 0 0 1 178.4 162.4"/>
+  <path d="M178.4 162.4A118 118 0 0 1 349.6 178.4"/>
+</g>
+<g stroke="#A7F432" stroke-width="18" stroke-linecap="round">
+  <path d="M256 72v28"/>
+  <path d="M440 256h-28"/>
+  <path d="M256 440v-28"/>
+  <path d="M72 256h28"/>
+</g>
+<circle cx="256" cy="256" r="30" fill="#A7F432"/>
+<circle cx="256" cy="256" r="54" fill="none" stroke="#363F49" stroke-width="6"/>
+</svg>

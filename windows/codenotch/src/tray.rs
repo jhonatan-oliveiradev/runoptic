@@ -13,7 +13,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         builder = builder.icon(icon);
     }
     builder
-        .tooltip(concat!("Codenotch v", env!("CARGO_PKG_VERSION")))
+        .tooltip(concat!("RunOptic v", env!("CARGO_PKG_VERSION")))
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, ev| handle(app, ev.id().as_ref()))
@@ -110,9 +110,9 @@ fn tooltip(app: &AppHandle) -> String {
         parts.push(format!("{} {value}", crate::provider_label(id)));
     }
     if parts.is_empty() {
-        concat!("Codenotch v", env!("CARGO_PKG_VERSION")).to_string()
+        concat!("RunOptic v", env!("CARGO_PKG_VERSION")).to_string()
     } else {
-        format!("Codenotch — {}", parts.join(" · "))
+        format!("RunOptic — {}", parts.join(" · "))
     }
 }
 

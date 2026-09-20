@@ -24,7 +24,7 @@ jobs:
   package:
     # workflow_dispatch is let through so a fork can try the installer before
     # opening a pull request; every other trigger only runs here.
-    if: github.repository == 'vinzdg/codenotch' || github.event_name == 'workflow_dispatch'
+    if: github.repository == 'jhonatan-oliveiradev/runoptic' || github.event_name == 'workflow_dispatch'
     name: NSIS installer
     # Only the release step writes anything; `gh release upload` fails without it.
     permissions:
@@ -54,7 +54,7 @@ jobs:
       - name: Build the hook
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --locked -p codenotch-hook --target-dir target/hook
+        run: cargo build --release --locked -p runoptic-hook --target-dir target/hook
 
       # tauri.bundle.conf.json is merged only here, so a plain `cargo build`
       # never looks for a hook binary that has not been built.
@@ -69,27 +69,27 @@ jobs:
         run: |
           $setup = @(Get-ChildItem target/release/bundle/nsis/*-setup.exe)
           if ($setup.Count -ne 1) { throw "expected one installer, found $($setup.Count)" }
-          Copy-Item $setup[0].FullName Codenotch-Setup.exe
+          Copy-Item $setup[0].FullName RunOptic-Setup.exe
 
       # What someone double-clicking the download gets, on a machine that has
-      # never seen Codenotch: the hook beside the app (hooks_install.rs looks
+      # never seen RunOptic: the hook beside the app (hooks_install.rs looks
       # for it there, so Install hooks fails without it), and an app that starts.
       - name: Install, run doctor, uninstall
         run: |
-          Start-Process -FilePath .\Codenotch-Setup.exe -ArgumentList '/S' -Wait
-          $hook = Get-ChildItem $env:LOCALAPPDATA -Filter codenotch-hook.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+          Start-Process -FilePath .\RunOptic-Setup.exe -ArgumentList '/S' -Wait
+          $hook = Get-ChildItem $env:LOCALAPPDATA -Filter runoptic-hook.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue |
             Select-Object -First 1
-          if (-not $hook) { throw 'the installer did not install codenotch-hook.exe' }
+          if (-not $hook) { throw 'the installer did not install runoptic-hook.exe' }
           $dir = $hook.DirectoryName
-          foreach ($f in 'codenotch.exe', 'uninstall.exe') {
-            if (-not (Test-Path (Join-Path $dir $f))) { throw "$f is not beside codenotch-hook.exe in $dir" }
+          foreach ($f in 'runoptic.exe', 'uninstall.exe') {
+            if (-not (Test-Path (Join-Path $dir $f))) { throw "$f is not beside runoptic-hook.exe in $dir" }
           }
           # The app is a GUI-subsystem exe that attaches to its parent's console,
           # so the report may reach either the redirected stdout or doctor.log.
-          Start-Process -FilePath (Join-Path $dir 'codenotch.exe') -ArgumentList 'doctor' `
+          Start-Process -FilePath (Join-Path $dir 'runoptic.exe') -ArgumentList 'doctor' `
             -RedirectStandardOutput doctor.txt -Wait
-          $doctor = "$(Get-Content doctor.txt -Raw)$(Get-Content (Join-Path $env:APPDATA 'codenotch\doctor.log') -Raw -ErrorAction SilentlyContinue)"
-          if ($doctor -notmatch 'Codenotch doctor') { throw "codenotch.exe doctor did not run: $doctor" }
+          $doctor = "$(Get-Content doctor.txt -Raw)$(Get-Content (Join-Path $env:APPDATA 'runoptic\doctor.log') -Raw -ErrorAction SilentlyContinue)"
+          if ($doctor -notmatch 'RunOptic doctor') { throw "runoptic.exe doctor did not run: $doctor" }
           $doctor
           Start-Process -FilePath (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
 
@@ -97,8 +97,8 @@ jobs:
       # the version only changes at a release.
       - uses: actions/upload-artifact@v7
         with:
-          name: Codenotch-Setup-${{ github.sha }}
-          path: windows/Codenotch-Setup.exe
+          name: RunOptic-Setup-${{ github.sha }}
+          path: windows/RunOptic-Setup.exe
           if-no-files-found: error
 
       # SmartScreen's warning names neither the fix nor the reason, so the
@@ -106,9 +106,9 @@ jobs:
       - name: Explain how to open it
         run: |
           @(
-            '### Codenotch for Windows — unsigned installer'
+            '### RunOptic for Windows — unsigned installer'
             ''
-            'Download the artifact below, unzip it, and run `Codenotch-Setup.exe`.'
+            'Download the artifact below, unzip it, and run `RunOptic-Setup.exe`.'
             'It installs for the current user, without administrator rights.'
             ''
             'The installer is not code-signed, so SmartScreen says *Windows protected your PC*'
@@ -122,4 +122,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload $env:TAG Codenotch-Setup.exe --clobber
+        run: gh release upload $env:TAG RunOptic-Setup.exe --clobber

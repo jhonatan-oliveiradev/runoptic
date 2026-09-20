@@ -12,10 +12,10 @@
   /* The pill on the right edge */
   #pill{
     position:absolute;right:0;top:50%;transform:translateY(-50%);
-    width:70px;padding:18px 0;background:#000;
+    width:70px;padding:18px 0;background:#0B0D10;
     border-radius:20px 0 0 20px;
     /* Stays visible on dark wallpapers: a thin stroke plus a faint glow, the only outline when black sits on black */
-    border:1px solid #2e2e2e;border-right:none;
+    border:1px solid #242A32;border-right:none;
     box-shadow:none;
     display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;
   }
@@ -31,11 +31,11 @@
   #pill{--fillet:38.7px}
   #pill::before{
     top:calc(-1 * var(--fillet)); /* covers the 1 px stroke along the pill's top edge so there is no seam */
-    background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
+    background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px));
   }
   #pill::after{
     bottom:calc(-1 * var(--fillet));
-    background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px));
+    background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px));
   }
   .cell{display:flex;flex-direction:column;align-items:center;gap:6px}
   .ringwrap{position:relative;width:56px;height:56px;transition:transform .3s cubic-bezier(.34,1.4,.64,1)}
@@ -43,16 +43,16 @@
   .ringwrap > svg.ring,.ringwrap > svg.reading,.ringwrap > svg.activity{position:absolute;inset:0;overflow:visible} /* pins only the ring itself; an inline logo svg must not match this or it ends up in the top-left corner */
   .glyph{
     position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    font-size:20px;font-weight:700;color:#e8e8ea;letter-spacing:-.5px;
+    font-size:20px;font-weight:700;color:#F4F7F8;letter-spacing:-.5px;
   }
   .glyph.small{font-size:15px}
   /* Glyphs: mark = the provider's own brand mark (monochrome, shown white); appicon = the installed app's icon (colour, rounded and shrunk) */
   .glyph img,.glyph svg{display:block;pointer-events:none;user-select:none}
-  .glyph .mark{display:block;width:26px;height:26px;color:#e8e8ea}
+  .glyph .mark{display:block;width:26px;height:26px;color:#F4F7F8}
   .glyph .mark svg{width:26px;height:26px;fill:currentColor} /* inline SVG follows currentColor, so it dims together with the cell */
   .glyph img.png{width:26px;height:26px;object-fit:contain}
   .glyph img.appicon{width:30px;height:30px;border-radius:8px;object-fit:cover}
-  .c-head .mark{display:inline-block;width:16px;height:16px;color:#e8e8ea;margin-right:2px}
+  .c-head .mark{display:inline-block;width:16px;height:16px;color:#F4F7F8;margin-right:2px}
   .c-head .mark svg{width:16px;height:16px;fill:currentColor}
   .pct{font-size:15px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums}
   .dim{opacity:.55}
@@ -77,7 +77,7 @@
     /* Anchored on both sides = fluid width: whatever the WebView's real logical width, the card cannot
        extend past the window's left edge (a fixed max-width got clipped when the DPI disagreed).
        The 246 cap matches the upstream spec. */
-    max-width:246px;margin-left:auto;background:#0a0a0a;border-radius:16px;padding:16px;
+    max-width:246px;margin-left:auto;background:#11161C;border-radius:16px;padding:16px;
     overflow-wrap:anywhere;min-width:0;
     max-height:calc(100% - 16px);overflow:hidden; /* never taller than the window, however short it is */
     display:none;
@@ -88,27 +88,27 @@
      than ::after, so the card's overflow cannot clip it and it can be reported as hot. It spans the
      whole gap, its tip tucked 1 px under the pill's edge so the two meet. */
   #tail{
-    position:absolute;right:69px;width:32px;height:36px;background:#0a0a0a;display:none;
+    position:absolute;right:69px;width:32px;height:36px;background:#11161C;display:none;
     clip-path:path('M0 0C0 9 18.56 13.68 32 18C18.56 22.32 0 27 0 36Z');
   }
   #card.show + #tail{display:block}
   .c-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
   .c-title{font-size:14px;font-weight:700}
-  .c-sub{font-size:11px;color:#808080;margin-bottom:10px}
+  .c-sub{font-size:11px;color:#7F8995;margin-bottom:10px}
   .win{margin-top:10px}
   .w-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;flex-wrap:wrap;column-gap:8px}
-  .w-label{color:#e8e8ea;font-weight:600;white-space:nowrap}
-  .w-reset{color:#808080;font-size:11px;white-space:nowrap;margin-left:auto} /* wrap as a whole when it does not fit; never break inside a word */
-  .w-track{height:4px;border-radius:2px;background:#2d2d2d;margin:6px 0 4px;overflow:hidden}
+  .w-label{color:#F4F7F8;font-weight:600;white-space:nowrap}
+  .w-reset{color:#7F8995;font-size:11px;white-space:nowrap;margin-left:auto} /* wrap as a whole when it does not fit; never break inside a word */
+  .w-track{height:4px;border-radius:2px;background:#20272F;margin:6px 0 4px;overflow:hidden}
   .w-fill{height:100%;border-radius:2px}
-  .w-used{font-size:11px;color:#808080}
-  .g-head{font-size:12px;font-weight:700;color:#e8e8ea;margin-top:12px}
-  .g-box{border:1px solid #242424;border-radius:10px;padding:0 10px 8px;margin-top:6px}
-  .c-note{font-size:12px;color:#c8c8c8;line-height:1.5;margin-top:6px}
-  .c-sessions{margin-top:12px;border-top:1px solid #1e1e1e;padding-top:8px}
-  .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:#b0b0b3;padding:2px 0}
+  .w-used{font-size:11px;color:#7F8995}
+  .g-head{font-size:12px;font-weight:700;color:#F4F7F8;margin-top:12px}
+  .g-box{border:1px solid #242A32;border-radius:10px;padding:0 10px 8px;margin-top:6px}
+  .c-note{font-size:12px;color:#A8B0BA;line-height:1.5;margin-top:6px}
+  .c-sessions{margin-top:12px;border-top:1px solid #202832;padding-top:8px}
+  .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:#A8B0BA;padding:2px 0}
   .s-dot{width:6px;height:6px;border-radius:3px;flex:0 0 auto}
-  .s-more{font-size:11px;color:#808080;padding:2px 0}
+  .s-more{font-size:11px;color:#7F8995;padding:2px 0}
 
   /* ---- The other three edges -------------------------------------------------
      The rules above draw the right-hand edge, the original layout and still the default. Each block
@@ -121,10 +121,10 @@
      is the concave arc between the two. */
 
   /* Left: the right-hand layout mirrored. */
-  body[data-edge="left"] #pill{right:auto;left:0;border-radius:0 20px 20px 0;border-right:1px solid #2e2e2e;border-left:none}
+  body[data-edge="left"] #pill{right:auto;left:0;border-radius:0 20px 20px 0;border-right:1px solid #242A32;border-left:none}
   body[data-edge="left"] #pill::before,body[data-edge="left"] #pill::after{right:auto;left:0}
-  body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px))}
+  body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px))}
   body[data-edge="left"] #card{left:100px;right:10px;margin-left:0;margin-right:auto}
   body[data-edge="left"] #tail{right:auto;left:69px;clip-path:path('M32 0C32 9 13.44 13.68 0 18C13.44 22.32 32 27 32 36Z')}
 
@@ -137,11 +137,11 @@
   body[data-edge="top"] #pill::before,body[data-edge="top"] #pill::after,
   body[data-edge="bottom"] #pill::before,body[data-edge="bottom"] #pill::after{right:auto;top:auto;bottom:auto}
   body[data-edge="top"] #pill{top:0;border-radius:0 0 20px 20px;border-top:none}
-  body[data-edge="top"] #pill::before{top:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="top"] #pill::after{top:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="top"] #pill::before{top:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 100%, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px))}
+  body[data-edge="top"] #pill::after{top:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 100%, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px))}
   body[data-edge="bottom"] #pill{bottom:0;border-radius:20px 20px 0 0;border-bottom:none}
-  body[data-edge="bottom"] #pill::before{bottom:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
-  body[data-edge="bottom"] #pill::after{bottom:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), #2e2e2e calc(var(--fillet) - 0.5px), #000 calc(var(--fillet) + 0.5px))}
+  body[data-edge="bottom"] #pill::before{bottom:0;left:calc(-1 * var(--fillet));background:radial-gradient(circle at 0 0, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px))}
+  body[data-edge="bottom"] #pill::after{bottom:0;right:calc(-1 * var(--fillet));background:radial-gradient(circle at 100% 0, transparent calc(var(--fillet) - 1.5px), #242A32 calc(var(--fillet) - 0.5px), #0B0D10 calc(var(--fillet) + 0.5px))}
   /* A fixed width here, not the fluid one the upright edges use: `placeCard` measures the card to
      centre it, and a shrink-to-fit width would change as it moves. 246 is the upstream cap either way. */
   body[data-edge="top"] #card,body[data-edge="bottom"] #card{
@@ -162,14 +162,14 @@
   .handle.hover{cursor:pointer}
   .handle > *{position:absolute;left:50%;top:50%;pointer-events:none;transition:opacity .2s,transform .36s cubic-bezier(.34,1.3,.64,1)}
   .h-rest{width:72px;height:72px;margin:-36px 0 0 -36px;overflow:visible;transform:rotate(var(--arc)) scale(1)}
-  .h-disc{width:46.6px;height:46.6px;margin:-23.3px 0 0 -23.3px;border-radius:50%;background:#000;border:1px solid #2e2e2e;opacity:0;transform:scale(1.1)}
-  .h-glyph{width:21px;height:21px;margin:-10.5px 0 0 -10.5px;fill:#e8e8ea;opacity:0;
+  .h-disc{width:46.6px;height:46.6px;margin:-23.3px 0 0 -23.3px;border-radius:50%;background:#0B0D10;border:1px solid #242A32;opacity:0;transform:scale(1.1)}
+  .h-glyph{width:21px;height:21px;margin:-10.5px 0 0 -10.5px;fill:#F4F7F8;opacity:0;
     transform:rotate(calc(var(--spins,0) * 360deg - 60deg)) scale(.5);transition:opacity .2s,transform .55s cubic-bezier(.34,1.2,.64,1)}
   .handle.hover .h-rest{opacity:0;transform:rotate(var(--arc)) scale(.86)}
   .handle.hover .h-disc{opacity:1;transform:scale(1)}
   .handle.hover .h-glyph{opacity:1;transform:rotate(calc(var(--spins,0) * 360deg)) scale(1)}
   /* Carrying: the disc goes dashed and the hand stops turning — it is being held now, not offered */
-  #move.armed .h-disc{border:2px dashed #e8e8ea;background:rgba(0,0,0,.72)}
+  #move.armed .h-disc{border:2px dashed #F4F7F8;background:rgba(0,0,0,.72)}
   /* The quarter that faces the fillet: up and outward past the far end on the right, and the same two
      directions mirrored along the stack at the near end */
   body[data-edge="left"] #orb,body[data-edge="top"] #orb{--arc:180deg}
@@ -178,6 +178,103 @@
   body[data-edge="left"] #move{--arc:90deg}
   body[data-edge="top"] #move{--arc:270deg}
   @media (prefers-reduced-motion: reduce){.handle > *{transition:none}}
+
+  /* ---- RunOptic Visual Foundation v1 ------------------------------------- */
+  body{color:#F4F7F8}
+  #pill{
+    background:#0B0D10;border-color:#242A32;
+    box-shadow:-10px 0 30px rgba(0,0,0,.24),inset 1px 0 0 rgba(255,255,255,.018)
+  }
+  .cell{
+    width:62px;padding:4px 3px;border:1px solid transparent;border-radius:15px;
+    transition:background .12s,border-color .12s
+  }
+  .cell:hover{background:#11171D;border-color:#202832}
+  .glyph{color:#F4F7F8}
+  .glyph .mark,.c-head .mark{color:#F4F7F8}
+  .pct{color:#F4F7F8;font-weight:650}
+  #card{
+    background:#11161C;border:1px solid #242A32;
+    box-shadow:0 18px 46px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.025)
+  }
+  #tail{background:#11161C}
+  .c-title{color:#F4F7F8;letter-spacing:-.01em}
+  .c-sub,.w-reset,.w-used,.s-more{color:#7F8995}
+  .w-label,.g-head{color:#DDE3E8}
+  .w-track{height:5px;background:#20272F}
+  .g-box{border-color:#242A32;background:#0E1318}
+  .c-note,.s-row{color:#A8B0BA}
+  .c-sessions{border-top-color:#202832}
+  .h-disc{background:#0B0D10;border-color:#2C3540}
+  .handle.hover .h-disc{border-color:#A7F432;box-shadow:0 0 0 1px rgba(167,244,50,.10)}
+  .h-glyph{fill:#F4F7F8}
+  #move.armed .h-disc{border-color:#A7F432;background:rgba(11,13,16,.86)}
+
+
+  /* ---- RunOptic Visual Foundation v1.1 ----------------------------------- */
+  :root{
+    --ro-accent:#A7F432;
+    --ro-bg:#0B0D10;
+    --ro-surface:#11161C;
+    --ro-text:#F4F7F8;
+    --ro-muted:#7F8995;
+    --ro-warning:#F6B84A;
+    --ro-critical:#FF5F68;
+  }
+  #pill{
+    background:var(--ro-bg);
+    border-color:#242A32;
+    border-radius:30px 0 0 30px;
+  }
+  body[data-edge="left"] #pill{border-radius:0 30px 30px 0}
+  body[data-edge="top"] #pill{border-radius:0 0 30px 30px}
+  body[data-edge="bottom"] #pill{border-radius:30px 30px 0 0}
+  .cell{border-radius:20px}
+  #card{background:var(--ro-surface);border-radius:18px;color:var(--ro-text)}
+  #tail{background:var(--ro-surface)}
+  .glyph,.glyph .mark,.c-head .mark,.pct,.w-label,.g-head{color:var(--ro-text)}
+  .c-sub,.w-reset,.w-used,.s-more,.c-note,.s-row{color:var(--ro-muted)}
+  .handle.hover .h-disc{border-color:var(--ro-accent)}
+  #move.armed .h-disc{border-color:var(--ro-accent)}
+  .ringwrap > svg.ring,.ringwrap > svg.reading,.ringwrap > svg.activity{width:100%;height:100%}
+
+  body[data-size="small"] #pill{
+    width:60px;padding-top:14px;padding-bottom:14px;border-radius:28px 0 0 28px;
+    --fillet:34px;
+    gap:11px;
+  }
+  body[data-size="small"][data-edge="left"] #pill{border-radius:0 28px 28px 0}
+  body[data-size="small"][data-edge="top"] #pill{width:auto;padding:10px 15px;border-radius:0 0 28px 28px}
+  body[data-size="small"][data-edge="bottom"] #pill{width:auto;padding:10px 15px;border-radius:28px 28px 0 0}
+  body[data-size="small"] .ringwrap{width:46px;height:46px}
+  body[data-size="small"] .glyph .mark,
+  body[data-size="small"] .glyph .mark svg,
+  body[data-size="small"] .glyph img.png{width:18px;height:18px}
+  body[data-size="small"] .glyph img.appicon{width:21px;height:21px;border-radius:7px}
+  body[data-size="small"] .glyph{font-size:15px}
+  body[data-size="small"] .pct{font-size:12px;line-height:1}
+  body[data-size="small"] .cell{width:52px;gap:4px;border-radius:18px}
+
+  body[data-size="medium"] #pill{
+    border-radius:34px 0 0 34px;--fillet:40px;
+  }
+  body[data-size="medium"][data-edge="left"] #pill{border-radius:0 34px 34px 0}
+  body[data-size="medium"][data-edge="top"] #pill{border-radius:0 0 34px 34px}
+  body[data-size="medium"][data-edge="bottom"] #pill{border-radius:34px 34px 0 0}
+
+  body[data-size="large"] #pill{
+    border-radius:38px 0 0 38px;--fillet:44px;
+  }
+  body[data-size="large"][data-edge="left"] #pill{border-radius:0 38px 38px 0}
+  body[data-size="large"][data-edge="top"] #pill{border-radius:0 0 38px 38px}
+  body[data-size="large"][data-edge="bottom"] #pill{border-radius:38px 38px 0 0}
+  body[data-size="large"] .ringwrap{width:62px;height:62px}
+  body[data-size="large"] .glyph .mark,
+  body[data-size="large"] .glyph .mark svg,
+  body[data-size="large"] .glyph img.png{width:29px;height:29px}
+  body[data-size="large"] .glyph img.appicon{width:33px;height:33px;border-radius:9px}
+  body[data-size="large"] .pct{font-size:16px}
+
 </style>
 </head>
 <body>
@@ -186,8 +283,8 @@
   <div id="tail"></div>
   <div id="move" class="handle">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
-      <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
-      <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle r="28.5" fill="none" stroke="#242A32" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle r="28.5" fill="none" stroke="#0B0D10" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
     <!-- A hand, as on the Mac: the gesture is a carry, not a nudge, which is what arrows would say -->
@@ -197,8 +294,8 @@
   </div>
   <div id="orb" class="handle">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
-      <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
-      <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle r="28.5" fill="none" stroke="#242A32" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
+      <circle r="28.5" fill="none" stroke="#0B0D10" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
     <svg class="h-glyph" viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg>
@@ -210,12 +307,44 @@
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
 
-/* Colour ramp (upstream palette values) */
-const AMPLE='#00FF88', WATCH='#F2FF00', CRIT='#FF3F00';
-// The status arc is neutral on purpose: the ring behind it is coloured by how much of the limit
-// is gone, and a green arc inside it reads as part of that scale. Waiting borrows the warning yellow.
-const TRACK='#303030', INK='#ffffff', DIM='#808080';
+/* RunOptic status palette: Signal / attention / critical. */
+let AMPLE='#A7F432', WATCH='#F6B84A', CRIT='#FF5F68';
+let TRACK='#242A32', INK='#F4F7F8', DIM='#7F8995';
 const tone=f=> f>=0.8?CRIT : f>=0.5?WATCH : AMPLE;
+
+const DEFAULT_THEME={
+  preset:'runoptic',accent:'#A7F432',background:'#0B0D10',surface:'#11161C',
+  text:'#F4F7F8',muted:'#7F8995',warning:'#F6B84A',critical:'#FF5F68'
+};
+function safeHex(value,fallback){
+  return typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(value)?value:fallback;
+}
+function applyTheme(raw){
+  const t=raw&&typeof raw==='object'?raw:DEFAULT_THEME;
+  const accent=safeHex(t.accent,DEFAULT_THEME.accent);
+  const background=safeHex(t.background,DEFAULT_THEME.background);
+  const surface=safeHex(t.surface,DEFAULT_THEME.surface);
+  const text=safeHex(t.text,DEFAULT_THEME.text);
+  const muted=safeHex(t.muted,DEFAULT_THEME.muted);
+  const warning=safeHex(t.warning,DEFAULT_THEME.warning);
+  const critical=safeHex(t.critical,DEFAULT_THEME.critical);
+  const root=document.documentElement.style;
+  root.setProperty('--ro-accent',accent);
+  root.setProperty('--ro-bg',background);
+  root.setProperty('--ro-surface',surface);
+  root.setProperty('--ro-text',text);
+  root.setProperty('--ro-muted',muted);
+  root.setProperty('--ro-warning',warning);
+  root.setProperty('--ro-critical',critical);
+  AMPLE=accent; WATCH=warning; CRIT=critical; INK=text; DIM=muted;
+  renderRing();
+  if(card&&card.classList.contains('show')) renderCard();
+}
+function applySize(scale){
+  const n=Number(scale);
+  document.body.dataset.size=n<0.9?'small':n>=1.125?'large':'medium';
+  requestAnimationFrame(reportHot);
+}
 // Whole percents, except where rounding would read as nothing used or nothing left, as the Mac's Percent does
 function smallPct(v){
   if(v<=0) return '0';
@@ -859,7 +988,7 @@ function renderCard(){
       html+=`<div class="c-sessions">`;
       for(const a of acts.slice(0,SESSION_ROWS)){
         const col=a.state==='waiting'?WATCH:INK;
-        html+=`<div class="s-row"><span class="s-dot" style="background:${col}"></span>${esc(a.name)}<span style="color:#808080;margin-left:auto">${esc(textCopy(a.detail))}</span></div>`;
+        html+=`<div class="s-row"><span class="s-dot" style="background:${col}"></span>${esc(a.name)}<span style="color:#7F8995;margin-left:auto">${esc(textCopy(a.detail))}</span></div>`;
       }
       html+=moreRow(acts.length-SESSION_ROWS)+`</div>`;
     }
@@ -1154,6 +1283,10 @@ listen('notch_slots',e=>{
 invoke('get_antigravity_prefs').then(p=>{if(p){agPrefs=p;renderRing();}}).catch(()=>{});
 invoke('get_weekly_ring').then(v=>{if(typeof v==='string'){weeklyRing=v;renderRing();}}).catch(()=>{});
 listen('weekly_ring',e=>{if(typeof e.payload==='string'){weeklyRing=e.payload;renderRing();}}).catch(()=>{});
+invoke('get_scale').then(applySize).catch(()=>applySize(1));
+listen('scale',e=>applySize(e.payload)).catch(()=>{});
+invoke('get_theme').then(applyTheme).catch(()=>applyTheme(DEFAULT_THEME));
+listen('theme',e=>applyTheme(e.payload)).catch(()=>{});
 listen('antigravity_prefs',e=>{if(e.payload){agPrefs=e.payload;renderRing();}}).catch(()=>{});
 listen('glyphs',e=>{glyphs=e.payload||glyphs;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
 listen('activity',e=>{activity=e.payload||activity;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});

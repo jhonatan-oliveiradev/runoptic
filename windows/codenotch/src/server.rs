@@ -1,4 +1,4 @@
-//! Local event server: receives codenotch-hook's POST /event?e=<event>&ppid=<pid>
+//! Local event server: receives runoptic-hook's POST /event?e=<event>&ppid=<pid>
 //! with the Claude Code hook's stdin JSON as the body. Lenient parsing: no missing field is an error.
 
 use crate::state::HookEvent;
@@ -11,14 +11,14 @@ pub fn start(app: AppHandle, port: u16) {
         let server = match tiny_http::Server::http(("127.0.0.1", port)) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("[codenotch] failed to bind port {port}: {e} (is another instance running?)");
+                eprintln!("[runoptic] failed to bind port {port}: {e} (is another instance running?)");
                 return;
             }
         };
         for mut req in server.incoming_requests() {
             let url = req.url().to_string();
             if url.starts_with("/event") {
-                // codenotch-hook only ever POSTs. A GET is also what a web page can send with no
+                // runoptic-hook only ever POSTs. A GET is also what a web page can send with no
                 // Origin header at all (an image tag), so nothing but POST is taken (#165).
                 if *req.method() != tiny_http::Method::Post {
                     let _ = req.respond(
@@ -102,7 +102,7 @@ fn parse(url: &str, body: &str) -> HookEvent {
 /// `127.0.0.1` or `localhost`, or carries `Sec-Fetch-Site: cross-site`, we reject it
 /// with a 403 Forbidden response to prevent cross-site request forgery and state poisoning.
 ///
-/// Native callers like `codenotch-hook` communicate directly over loopback TCP without
+/// Native callers like `runoptic-hook` communicate directly over loopback TCP without
 /// browser `Origin` or `Sec-Fetch-Site` headers, allowing them to succeed seamlessly.
 pub(crate) fn is_forbidden(req: &tiny_http::Request) -> bool {
     is_forbidden_headers(req.headers())
