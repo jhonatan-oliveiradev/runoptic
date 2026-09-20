@@ -366,7 +366,7 @@ fn hidden_command(program: &str) -> Command {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_output, is_system_distro, parse_wsl_list, unc_home};
+    use super::{decode_output, is_system_distro, parse_wsl_list, resolve_wsl_environment, unc_home};
     use std::path::PathBuf;
 
     fn utf16le(s: &str) -> Vec<u8> {
@@ -409,5 +409,17 @@ mod tests {
         assert!(is_system_distro("docker-desktop"));
         assert!(is_system_distro("Docker-Desktop"));
         assert!(!is_system_distro("Ubuntu-24.04"));
+    }
+
+    #[test]
+    fn stopped_distro_is_reported_without_home_probe() {
+        let env = resolve_wsl_environment("Ubuntu-24.04", false);
+        assert!(!env.running);
+        assert!(!env.reachable);
+        assert_eq!(env.linux_home, None);
+        assert_eq!(
+            env.diagnostic.as_deref(),
+            Some("distro is stopped; HOME resolution skipped")
+        );
     }
 }
