@@ -214,6 +214,30 @@
   #strip{border:1px solid rgba(255,95,104,.16);background:rgba(255,95,104,.08);color:#FF8D94}
   #toast{background:#10161C;border-color:#26303A;color:#A8B0BA;box-shadow:0 12px 30px rgba(0,0,0,.28)}
 
+
+  /* ---- RunOptic theme editor --------------------------------------------- */
+  :root{
+    --ro-bg:#0B0D10;--ro-surface:#11161C;--ro-text:#F4F7F8;--ro-muted:#7F8995;
+    --ro-warning:#F6B84A;--ro-critical:#FF5F68;
+  }
+  body,body.solid,#app,#pane{background:var(--ro-bg)!important}
+  #side,.group,#toast{background:var(--ro-surface)!important}
+  body{color:var(--ro-text)}
+  .theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px 12px}
+  .theme-color{
+    min-height:38px;border:1px solid #242D36;border-radius:8px;background:rgba(255,255,255,.018);
+    display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px
+  }
+  .theme-color span{font-size:11.5px;color:var(--ro-muted)}
+  .theme-color input[type="color"]{
+    appearance:none;width:28px;height:22px;padding:0;border:1px solid #34404B;border-radius:6px;
+    background:transparent;overflow:hidden;cursor:pointer
+  }
+  .theme-color input[type="color"]::-webkit-color-swatch-wrapper{padding:2px}
+  .theme-color input[type="color"]::-webkit-color-swatch{border:0;border-radius:3px}
+  .theme-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  #theme-custom[hidden]{display:none!important}
+
 </style>
 </head>
 <body>
@@ -271,6 +295,23 @@
           </div>
           <div class="item cap" id="cap-screen" data-dynamic hidden></div>
           <div class="item"><span class="hint">The pill can also be dragged: pick it up and drop it anywhere, and it snaps to the nearest edge of the screen you dropped it on. Recentre puts it back in the middle of the edge it is on, or on the main screen's right-hand edge if the screen it was on has been unplugged.</span><button class="btn" id="btn-recentre">Recentre</button></div>
+        </div>
+        <div class="sec">Theme</div>
+        <div class="group">
+          <div class="item"><span>Theme</span><span class="seg" id="seg-theme"><button data-v="runoptic">RunOptic</button><button data-v="custom">Custom</button></span></div>
+          <div class="item cap">RunOptic is the default. Custom themes change presentation only — provider health semantics and telemetry stay the same.</div>
+          <div id="theme-custom" hidden>
+            <div class="theme-grid">
+              <label class="theme-color"><span>Accent</span><input type="color" data-theme-key="accent" value="#A7F432" aria-label="Theme accent"></label>
+              <label class="theme-color"><span>Background</span><input type="color" data-theme-key="background" value="#0B0D10" aria-label="Theme background"></label>
+              <label class="theme-color"><span>Surface</span><input type="color" data-theme-key="surface" value="#11161C" aria-label="Theme surface"></label>
+              <label class="theme-color"><span>Text</span><input type="color" data-theme-key="text" value="#F4F7F8" aria-label="Theme text"></label>
+              <label class="theme-color"><span>Muted</span><input type="color" data-theme-key="muted" value="#7F8995" aria-label="Theme muted text"></label>
+              <label class="theme-color"><span>Warning</span><input type="color" data-theme-key="warning" value="#F6B84A" aria-label="Theme warning"></label>
+              <label class="theme-color"><span>Critical</span><input type="color" data-theme-key="critical" value="#FF5F68" aria-label="Theme critical"></label>
+            </div>
+            <div class="item cap theme-actions"><span>Changes preview immediately and are saved locally.</span><button class="btn" id="btn-theme-reset">Reset colors</button></div>
+          </div>
         </div>
         <div class="sec">App</div>
         <div class="group">
@@ -838,16 +879,62 @@ function toast(msg){
    Dark 1 with white text in light mode. Both are asked for again whenever the window comes forward,
    so an accent changed in Settings shows up without reopening this one. */
 const dark = matchMedia('(prefers-color-scheme: dark)');
+const DEFAULT_THEME={
+  preset:'runoptic',accent:'#A7F432',background:'#0B0D10',surface:'#11161C',
+  text:'#F4F7F8',muted:'#7F8995',warning:'#F6B84A',critical:'#FF5F68'
+};
+let theme={...DEFAULT_THEME};
+function safeHex(value,fallback){
+  return typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(value)?value.toUpperCase():fallback;
+}
+function readTheme(raw){
+  if(!raw||typeof raw!=='object') return {...DEFAULT_THEME};
+  const preset=raw.preset==='custom'?'custom':'runoptic';
+  if(preset==='runoptic') return {...DEFAULT_THEME};
+  return {
+    preset,
+    accent:safeHex(raw.accent,DEFAULT_THEME.accent),
+    background:safeHex(raw.background,DEFAULT_THEME.background),
+    surface:safeHex(raw.surface,DEFAULT_THEME.surface),
+    text:safeHex(raw.text,DEFAULT_THEME.text),
+    muted:safeHex(raw.muted,DEFAULT_THEME.muted),
+    warning:safeHex(raw.warning,DEFAULT_THEME.warning),
+    critical:safeHex(raw.critical,DEFAULT_THEME.critical)
+  };
+}
 function applyAccent(){
-  const root = document.documentElement.style;
-  root.setProperty('--accent', '#A7F432');
-  root.setProperty('--on-accent', '#0B0D10');
+  const root=document.documentElement.style;
+  root.setProperty('--accent',theme.accent);
+  root.setProperty('--on-accent',theme.background);
+  root.setProperty('--ro-bg',theme.background);
+  root.setProperty('--ro-surface',theme.surface);
+  root.setProperty('--ro-text',theme.text);
+  root.setProperty('--ro-muted',theme.muted);
+  root.setProperty('--ro-warning',theme.warning);
+  root.setProperty('--ro-critical',theme.critical);
+  root.setProperty('--text',theme.text);
+  root.setProperty('--text2',theme.muted);
+  root.setProperty('--pane',theme.background);
+  root.setProperty('--side',theme.surface);
+  root.setProperty('--group',theme.surface);
+}
+function renderTheme(){
+  applyAccent();
+  for(const b of document.querySelectorAll('#seg-theme button')){
+    const on=b.dataset.v===theme.preset;
+    b.classList.toggle('on',on);
+    b.setAttribute('aria-pressed',on?'true':'false');
+  }
+  const custom=document.getElementById('theme-custom');
+  custom.hidden=theme.preset!=='custom';
+  for(const input of document.querySelectorAll('[data-theme-key]')){
+    const key=input.dataset.themeKey;
+    if(theme[key]&&input.value.toUpperCase()!==theme[key]) input.value=theme[key];
+  }
 }
 function loadLook(){
-  /* RunOptic deliberately keeps its instrumentation palette independent from the
-     Windows wallpaper/accent so status colours have stable meaning. */
   document.body.classList.add('solid');
-  applyAccent();
+  renderTheme();
 }
 dark.addEventListener('change', applyAccent);
 
@@ -1150,6 +1237,36 @@ document.getElementById('seg-size').addEventListener('click', e => {
     .then(() => { sizeBusy = false; renderSize(); });
 });
 
+/* ---- Appearance: theme --------------------------------------------------- */
+let themeSaveTimer=0;
+function saveTheme(next, immediate){
+  theme=readTheme(next);
+  renderTheme();
+  const commit=()=>invoke('set_theme',{theme})
+    .then(v=>{theme=readTheme(v);renderTheme();toast();})
+    .catch(err=>strip('set_theme failed: '+errText(err)));
+  clearTimeout(themeSaveTimer);
+  if(immediate) commit(); else themeSaveTimer=setTimeout(commit,120);
+}
+document.getElementById('seg-theme').addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(!b||b.dataset.v===theme.preset) return;
+  if(b.dataset.v==='runoptic') saveTheme({...DEFAULT_THEME},true);
+  else saveTheme({...theme,preset:'custom'},true);
+});
+for(const input of document.querySelectorAll('[data-theme-key]')){
+  input.addEventListener('input',e=>{
+    saveTheme({...theme,preset:'custom',[e.target.dataset.themeKey]:e.target.value},false);
+  });
+}
+document.getElementById('btn-theme-reset').addEventListener('click',()=>{
+  saveTheme({...DEFAULT_THEME,preset:'custom'},true);
+});
+try{
+  window.__TAURI__.event.listen('theme',e=>{theme=readTheme(e.payload);renderTheme();});
+}catch(e){ /* theme still works through direct command replies */ }
+
+
 /* ---- Appearance: edge and screen -------------------------------------------
    The notch stands upright on the left and right edges and lies flat on the top and bottom ones. The
    screen row only appears once there is more than one to choose between, and a monitor the platform
@@ -1299,6 +1416,7 @@ function renderAll(){
   renderAccounts();
   renderFlags();
   renderSize();
+  renderTheme();
   renderEdge();
   renderScreens();
   renderWeekly();
@@ -1310,6 +1428,7 @@ function boot(){
   showTab(savedTab());
   setUiLanguage('auto');
   loadLook();
+  call('get_theme', undefined, DEFAULT_THEME).then(v => { theme=readTheme(v); renderTheme(); });
   refreshOptions();
   call('get_notch_slots', undefined, []).then(v => {
     notchSlots = Array.isArray(v) ? v.filter(x => x && typeof x.provider === 'string').map(x => ({ provider:x.provider })) : [];
@@ -1319,6 +1438,7 @@ function boot(){
   call('get_glyphs', undefined, null).then(g => { if(g && typeof g === 'object'){ glyphs = g; renderAccounts(); } });
   try { window.__TAURI__.event.listen('glyphs', e => { if(e.payload){ glyphs = e.payload; renderAccounts(); } }); } catch(e) { /* the letters stay */ }
   call('get_scale', undefined, null).then(v => { if(typeof v === 'number') notchSize = v; renderSize(); });
+  call('get_theme', undefined, DEFAULT_THEME).then(v => { theme=readTheme(v); renderTheme(); });
   call('get_notch_edge', undefined, null).then(v => { if(typeof v === 'string') notchEdge = v; renderEdge(); });
   refreshScreens();
   call('get_weekly_ring', undefined, null).then(v => { if(typeof v === 'string') weeklyRing = v; renderWeekly(); });
