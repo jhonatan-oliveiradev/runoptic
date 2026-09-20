@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -341,11 +342,42 @@ fn decode_output(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
+const WSL_COMMAND_TIMEOUT: Duration = Duration::from_secs(8);
+
 fn run_wsl(args: &[&str]) -> Result<Output, String> {
     let mut cmd = hidden_command("wsl.exe");
-    cmd.args(args);
-    cmd.output()
-        .map_err(|err| format!("wsl.exe unavailable: {err}"))
+    cmd.args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|err| format!("wsl.exe unavailable: {err}"))?;
+    let started = Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|err| format!("could not read wsl.exe output: {err}"));
+            }
+            Ok(None) if started.elapsed() >= WSL_COMMAND_TIMEOUT => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "wsl.exe timed out after {}s",
+                    WSL_COMMAND_TIMEOUT.as_secs()
+                ));
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(25)),
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("could not wait for wsl.exe: {err}"));
+            }
+        }
+    }
 }
 
 #[cfg(windows)]
