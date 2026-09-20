@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvironmentKind {
     WindowsNative,
@@ -143,6 +143,23 @@ fn discover_wsl() -> Result<Vec<SourceEnvironment>, String> {
 fn resolve_wsl_environment(distro: &str) -> SourceEnvironment {
     let id = format!("wsl:{}", distro.to_ascii_lowercase());
     let system = is_system_distro(distro);
+
+    // Infrastructure distros are useful diagnostic context, but probing them would start a
+    // container/runtime VM that RunOptic has no reason to inspect for developer credentials.
+    if system {
+        let home = PathBuf::from(format!(r"\\wsl.localhost\{distro}"));
+        return SourceEnvironment {
+            id,
+            kind: EnvironmentKind::Wsl,
+            label: format!("WSL · {distro}"),
+            reachable: home.exists(),
+            home,
+            distro: Some(distro.to_string()),
+            linux_home: None,
+            system: true,
+            diagnostic: Some("infrastructure distro; HOME resolution skipped".into()),
+        };
+    }
 
     match resolve_linux_home(distro) {
         Ok(linux_home) => {
