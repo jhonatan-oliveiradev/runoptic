@@ -210,6 +210,45 @@
   .h-glyph{fill:#F4F7F8}
   #move.armed .h-disc{border-color:#A7F432;background:rgba(11,13,16,.86)}
 
+
+  /* ---- RunOptic Visual Foundation v1.1 ----------------------------------- */
+  :root{
+    --ro-accent:#A7F432;
+    --ro-bg:#0B0D10;
+    --ro-surface:#11161C;
+    --ro-text:#F4F7F8;
+    --ro-muted:#7F8995;
+    --ro-warning:#F6B84A;
+    --ro-critical:#FF5F68;
+  }
+  #pill{
+    background:var(--ro-bg);
+    border-color:#242A32;
+    border-radius:30px 0 0 30px;
+  }
+  body[data-edge="left"] #pill{border-radius:0 30px 30px 0}
+  body[data-edge="top"] #pill{border-radius:0 0 30px 30px}
+  body[data-edge="bottom"] #pill{border-radius:30px 30px 0 0}
+  .cell{border-radius:20px}
+  #card{background:var(--ro-surface);border-radius:18px;color:var(--ro-text)}
+  #tail{background:var(--ro-surface)}
+  .glyph,.glyph .mark,.c-head .mark,.pct,.w-label,.g-head{color:var(--ro-text)}
+  .c-sub,.w-reset,.w-used,.s-more,.c-note,.s-row{color:var(--ro-muted)}
+  .handle.hover .h-disc{border-color:var(--ro-accent)}
+  #move.armed .h-disc{border-color:var(--ro-accent)}
+  body[data-size="small"] .glyph .mark,
+  body[data-size="small"] .glyph .mark svg,
+  body[data-size="small"] .glyph img.png{width:20px;height:20px}
+  body[data-size="small"] .glyph img.appicon{width:23px;height:23px;border-radius:7px}
+  body[data-size="small"] .glyph{font-size:16px}
+  body[data-size="small"] .pct{font-size:13px}
+  body[data-size="small"] .cell{gap:4px}
+  body[data-size="large"] .glyph .mark,
+  body[data-size="large"] .glyph .mark svg,
+  body[data-size="large"] .glyph img.png{width:29px;height:29px}
+  body[data-size="large"] .glyph img.appicon{width:33px;height:33px;border-radius:9px}
+  body[data-size="large"] .pct{font-size:16px}
+
 </style>
 </head>
 <body>
@@ -243,11 +282,43 @@ const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
 
 /* RunOptic status palette: Signal / attention / critical. */
-const AMPLE='#A7F432', WATCH='#F6B84A', CRIT='#FF5F68';
-// The status arc is neutral on purpose: the ring behind it is coloured by how much of the limit
-// is gone, and a green arc inside it reads as part of that scale. Waiting borrows the warning yellow.
-const TRACK='#242A32', INK='#F4F7F8', DIM='#7F8995';
+let AMPLE='#A7F432', WATCH='#F6B84A', CRIT='#FF5F68';
+let TRACK='#242A32', INK='#F4F7F8', DIM='#7F8995';
 const tone=f=> f>=0.8?CRIT : f>=0.5?WATCH : AMPLE;
+
+const DEFAULT_THEME={
+  preset:'runoptic',accent:'#A7F432',background:'#0B0D10',surface:'#11161C',
+  text:'#F4F7F8',muted:'#7F8995',warning:'#F6B84A',critical:'#FF5F68'
+};
+function safeHex(value,fallback){
+  return typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(value)?value:fallback;
+}
+function applyTheme(raw){
+  const t=raw&&typeof raw==='object'?raw:DEFAULT_THEME;
+  const accent=safeHex(t.accent,DEFAULT_THEME.accent);
+  const background=safeHex(t.background,DEFAULT_THEME.background);
+  const surface=safeHex(t.surface,DEFAULT_THEME.surface);
+  const text=safeHex(t.text,DEFAULT_THEME.text);
+  const muted=safeHex(t.muted,DEFAULT_THEME.muted);
+  const warning=safeHex(t.warning,DEFAULT_THEME.warning);
+  const critical=safeHex(t.critical,DEFAULT_THEME.critical);
+  const root=document.documentElement.style;
+  root.setProperty('--ro-accent',accent);
+  root.setProperty('--ro-bg',background);
+  root.setProperty('--ro-surface',surface);
+  root.setProperty('--ro-text',text);
+  root.setProperty('--ro-muted',muted);
+  root.setProperty('--ro-warning',warning);
+  root.setProperty('--ro-critical',critical);
+  AMPLE=accent; WATCH=warning; CRIT=critical; INK=text; DIM=muted;
+  renderRing();
+  if(card&&card.classList.contains('show')) renderCard();
+}
+function applySize(scale){
+  const n=Number(scale);
+  document.body.dataset.size=n<0.9?'small':n>=1.125?'large':'medium';
+  requestAnimationFrame(reportHot);
+}
 // Whole percents, except where rounding would read as nothing used or nothing left, as the Mac's Percent does
 function smallPct(v){
   if(v<=0) return '0';
@@ -1186,6 +1257,10 @@ listen('notch_slots',e=>{
 invoke('get_antigravity_prefs').then(p=>{if(p){agPrefs=p;renderRing();}}).catch(()=>{});
 invoke('get_weekly_ring').then(v=>{if(typeof v==='string'){weeklyRing=v;renderRing();}}).catch(()=>{});
 listen('weekly_ring',e=>{if(typeof e.payload==='string'){weeklyRing=e.payload;renderRing();}}).catch(()=>{});
+invoke('get_scale').then(applySize).catch(()=>applySize(1));
+listen('scale',e=>applySize(e.payload)).catch(()=>{});
+invoke('get_theme').then(applyTheme).catch(()=>applyTheme(DEFAULT_THEME));
+listen('theme',e=>applyTheme(e.payload)).catch(()=>{});
 listen('antigravity_prefs',e=>{if(e.payload){agPrefs=e.payload;renderRing();}}).catch(()=>{});
 listen('glyphs',e=>{glyphs=e.payload||glyphs;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
 listen('activity',e=>{activity=e.payload||activity;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
