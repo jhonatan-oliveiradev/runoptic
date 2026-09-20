@@ -60,8 +60,7 @@ pub fn discover() -> DiscoveryReport {
     }
 }
 
-pub fn probe() -> String {
-    let report = discover();
+pub fn probe(report: &DiscoveryReport) -> String {
     let mut out = String::new();
 
     for env in &report.environments {
