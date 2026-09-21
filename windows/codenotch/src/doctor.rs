@@ -123,6 +123,29 @@ pub fn run() -> String {
         }
     );
 
+    let codex_accounts = crate::codex::group_accounts(&profiles)
+        .into_iter()
+        .map(|group| {
+            format!(
+                "  {}: profiles=[{}] selected={} credential={} plan={}",
+                group.key,
+                group.profile_keys.join(", "),
+                group.selected_profile_key,
+                group.credential_state,
+                group.plan.as_deref().unwrap_or("?")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\ncodex quota accounts:\n{}\n",
+        if codex_accounts.is_empty() {
+            "  (no authenticated Codex account identities)"
+        } else {
+            &codex_accounts
+        }
+    );
+
     o += &format!("\nusage sources:\n  {}\n  {}\n", crate::usage::probe_credentials(), crate::codex::probe());
     o += &format!("  {}\n", crate::cursor::probe());
     o += &format!("  {}\n", crate::grok::probe());
