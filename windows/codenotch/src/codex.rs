@@ -57,6 +57,12 @@ fn codex_home() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".codex"))
 }
 
+/// A Codex configuration root can live in native Windows or in a resolved WSL environment.
+/// Keep filesystem routing explicit so collectors never have to reinterpret `~` themselves.
+fn auth_path_in(codex_home: &Path) -> PathBuf {
+    codex_home.join("auth.json")
+}
+
 fn store_path() -> PathBuf {
     crate::config::config_path().with_file_name("codex.json")
 }
@@ -124,7 +130,7 @@ pub fn find_executable() -> Option<PathBuf> {
 // ---------------- Live: the usage endpoint ----------------
 
 fn auth_path() -> Option<PathBuf> {
-    codex_home().map(|h| h.join("auth.json"))
+    codex_home().map(|h| auth_path_in(&h))
 }
 
 struct Credential {
@@ -143,9 +149,10 @@ fn jwt_claims(token: &str) -> Option<serde_json::Value> {
     serde_json::from_slice(&raw).ok()
 }
 
-/// Reads Codex's sign-in state; a missing file or missing field both mean "not signed in"
-fn load_credential() -> Option<Credential> {
-    let text = std::fs::read_to_string(auth_path()?).ok()?;
+/// Reads Codex's sign-in state from one explicit configuration root; a missing file or missing
+/// field both mean "not signed in". This is intentionally filesystem-only and never writes tokens.
+fn load_credential_in(codex_home: &Path) -> Option<Credential> {
+    let text = std::fs::read_to_string(auth_path_in(codex_home)).ok()?;
     let v: serde_json::Value = serde_json::from_str(&text).ok()?;
     let tokens = v.get("tokens")?;
     let access_token = tokens.get("access_token")?.as_str()?.trim().to_string();
@@ -168,6 +175,10 @@ fn load_credential() -> Option<Credential> {
                 .map(String::from)
         });
     Some(Credential { access_token, account_id, plan, expired })
+}
+
+fn load_credential() -> Option<Credential> {
+    load_credential_in(&codex_home()?)
 }
 
 enum LiveErr {
@@ -365,9 +376,10 @@ fn windows_from_usage(v: &serde_json::Value) -> Vec<LimitWindow> {
 
 // ---------------- Fallback: the rollout snapshot ----------------
 
-/// The most recently modified rollout: dated directories newest-first, looking only at the three most recent days that have files
-pub fn newest_rollout() -> Option<PathBuf> {
-    let root = codex_home()?.join("sessions");
+/// The most recently modified rollout below one Codex configuration root: dated directories
+/// newest-first, looking only at the three most recent days that have files.
+fn newest_rollout_in(codex_home: &Path) -> Option<PathBuf> {
+    let root = codex_home.join("sessions");
     let mut days: Vec<PathBuf> = Vec::new();
     let mut years = list_dirs(&root);
     years.sort_by(|a, b| b.cmp(a));
@@ -403,6 +415,10 @@ pub fn newest_rollout() -> Option<PathBuf> {
         }
     }
     best.map(|(_, p)| p)
+}
+
+pub fn newest_rollout() -> Option<PathBuf> {
+    newest_rollout_in(&codex_home()?)
 }
 
 fn list_dirs(p: &Path) -> Vec<PathBuf> {
@@ -606,6 +622,42 @@ pub fn start(app: AppHandle) {
     });
 }
 
+/// For doctor/runtime inventory: inspect one discovered Codex profile without making a usage
+/// request. This proves collector routing independently from the single-ring presentation model.
+pub fn probe_profile(profile: &crate::profile::ToolProfile) -> Option<String> {
+    if profile.tool != crate::profile::ToolKind::Codex {
+        return None;
+    }
+
+    let home = &profile.config_dir;
+    let auth = match load_credential_in(home) {
+        Some(c) => format!(
+            "auth usable{}{}",
+            if c.expired { " (access_token expired)" } else { "" },
+            c.plan.map(|p| format!(", plan={p}")).unwrap_or_default()
+        ),
+        None if auth_path_in(home).is_file() => "auth present but has no token".to_string(),
+        None => "auth not found".to_string(),
+    };
+    let rollout = newest_rollout_in(home);
+    let age = rollout
+        .as_ref()
+        .and_then(|p| std::fs::metadata(p).ok())
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| SystemTime::now().duration_since(t).ok())
+        .map(|d| format!("{} min ago", d.as_secs() / 60))
+        .unwrap_or_else(|| "?".into());
+
+    Some(format!(
+        "{}: {auth} | newest rollout {} (modified {})",
+        profile.key,
+        rollout
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "none".into()),
+        age
+    ))
+}
+
 /// For doctor: contains no secrets
 pub fn probe() -> String {
     let auth = match load_credential() {
@@ -652,6 +704,25 @@ mod tests {
 
     fn groups(ws: &[LimitWindow]) -> Vec<Option<&str>> {
         ws.iter().map(|w| w.group.as_deref()).collect()
+    }
+
+    #[test]
+    fn explicit_codex_home_routes_auth_without_native_home() {
+        let root = std::env::temp_dir().join(format!(
+            "runoptic-codex-source-{}",
+            now_ms()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            auth_path_in(&root),
+            r#"{"tokens":{"access_token":"header.eyJleHAiOjQxMDI0NDQ4MDB9.signature","account_id":"test"}}"#,
+        )
+        .unwrap();
+
+        let credential = load_credential_in(&root).expect("explicit Codex root should be readable");
+        assert_eq!(credential.account_id, "test");
+
+        std::fs::remove_dir_all(root).ok();
     }
 
     #[test]
