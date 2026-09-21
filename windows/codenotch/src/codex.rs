@@ -39,9 +39,6 @@ const ENDPOINT: &str = "https://chatgpt.com/backend-api/wham/usage";
 const BACKOFF_MIN_SECS: u64 = 60; // wait at least this long after a 429; Retry-After only raises it
 
 static REFRESH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-/// Retry deadline given by the server (ms epoch): neither a manual refresh nor a restart may bypass it
-static BACKOFF_UNTIL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
 pub fn request_refresh() {
     REFRESH.store(true, std::sync::atomic::Ordering::Relaxed);
 }
@@ -65,20 +62,6 @@ fn auth_path_in(codex_home: &Path) -> PathBuf {
 
 fn store_path() -> PathBuf {
     crate::config::config_path().with_file_name("codex.json")
-}
-
-pub fn load_persisted() -> UsageSnapshot {
-    std::fs::read_to_string(store_path())
-        .ok()
-        .and_then(|t| serde_json::from_str::<UsageSnapshot>(&t).ok())
-        .map(|mut s| {
-            if !s.windows.is_empty() {
-                s.status = "stale".into();
-            }
-            BACKOFF_UNTIL.store(s.backoff_until, std::sync::atomic::Ordering::Relaxed);
-            s
-        })
-        .unwrap_or_default()
 }
 
 fn persist(s: &UsageSnapshot) {
@@ -482,95 +465,6 @@ pub fn present() -> bool {
         || codex_home().map(|h| h.join("sessions").is_dir()).unwrap_or(false)
 }
 
-fn read_once() -> UsageSnapshot {
-    let mut snap = UsageSnapshot::default();
-    // Note attached to the fallback reading when the live read failed; needs_auth picks the empty state when there is no fallback either
-    let mut live_note: Option<String> = None;
-    let mut needs_auth = false;
-    let held_until = BACKOFF_UNTIL.load(std::sync::atomic::Ordering::Relaxed);
-    let now = now_ms();
-    if held_until > now {
-        snap.backoff_until = held_until;
-        live_note = Some(format!("Rate limited — retrying in {}s", (held_until - now) / 1000));
-    } else {
-        match load_credential() {
-            None => {
-                if auth_path().map(|p| p.is_file()).unwrap_or(false) {
-                    crate::applog("codex: auth.json has no usable access_token/account_id, falling back to the rollout");
-                }
-            }
-            Some(cred) => match fetch_usage(&cred) {
-                Ok(v) => {
-                    let windows = windows_from_usage(&v);
-                    if !windows.is_empty() {
-                        let plan = v.get("plan_type").and_then(|x| x.as_str()).map(String::from).or(cred.plan);
-                        snap.status = "ok".into();
-                        snap.windows = windows;
-                        snap.fetched_at = now_ms();
-                        snap.note = plan.map(|p| format!("{} · via Codex", cap(&p))).unwrap_or_default();
-                        return snap;
-                    }
-                    let keys: Vec<String> = v.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default();
-                    crate::applog(&format!("codex: usage reply has no windows (top-level keys {keys:?}), falling back to the rollout"));
-                    live_note = Some("Codex reported no usage windows".into());
-                }
-                Err(LiveErr::NeedsAuth) => {
-                    needs_auth = true;
-                    live_note = Some(if cred.expired {
-                        "Codex sign-in expired — open Codex once to refresh it".into()
-                    } else {
-                        "Codex rejected its sign-in — sign in to Codex again".into()
-                    });
-                }
-                Err(LiveErr::RateLimited(secs)) => {
-                    let until = now_ms() + secs * 1000;
-                    BACKOFF_UNTIL.store(until, std::sync::atomic::Ordering::Relaxed);
-                    snap.backoff_until = until;
-                    live_note = Some(format!("Rate limited — retrying in {secs}s"));
-                    crate::applog(&format!("codex: usage endpoint returned 429, retrying in {secs}s"));
-                }
-                Err(LiveErr::Other(e)) => {
-                    crate::applog(&format!("codex: live read failed ({e}), falling back to the rollout"));
-                    live_note = Some(format!("Live read failed ({e})"));
-                }
-            },
-        }
-    }
-    // Fallback: rollout
-    match newest_rollout().and_then(|p| tail_text(&p)).and_then(|t| snapshot_from_rollout(&t)) {
-        Some((windows, recorded, plan)) => {
-            let rec = recorded.unwrap_or(0);
-            let fresh = rec > 0 && now_ms().saturating_sub(rec) <= CURRENT_FOR_MS;
-            snap.status = if fresh { "ok" } else { "stale" }.into();
-            snap.windows = windows;
-            snap.fetched_at = rec; // the recorded time is what counts; the UI shows Updated N ago from it
-            snap.note = match plan {
-                Some(p) => format!("{} · from last Codex run", cap(&p)),
-                None => "from last Codex run".into(),
-            };
-            if let Some(n) = live_note {
-                snap.note = format!("{n} · {}", snap.note);
-            }
-        }
-        None => {
-            snap.status = if needs_auth {
-                "needsAuth"
-            } else if present() {
-                "none"
-            } else {
-                "absent"
-            }
-            .into();
-            snap.note = match live_note {
-                Some(n) => n,
-                None if present() => "Codex has not recorded a usage snapshot yet".into(),
-                None => String::new(),
-            };
-        }
-    }
-    snap
-}
-
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ProfileObservation {
     pub profile_key: String,
@@ -700,6 +594,23 @@ pub fn load_account_usage() -> Vec<AccountUsage> {
             items
         })
         .unwrap_or_default()
+}
+
+pub fn bootstrap_legacy_snapshot(accounts: &[AccountUsage]) -> UsageSnapshot {
+    let mut snapshot = accounts
+        .first()
+        .map(|account| account.snapshot.clone())
+        .unwrap_or_default();
+
+    if !snapshot.windows.is_empty() {
+        snapshot.status = "stale".into();
+        snapshot.note = if snapshot.note.is_empty() {
+            "Cached Codex account snapshot".into()
+        } else {
+            format!("Cached · {}", snapshot.note)
+        };
+    }
+    snapshot
 }
 
 fn persist_account_usage(items: &[AccountUsage]) {
@@ -971,112 +882,6 @@ fn cap(s: &str) -> String {
     }
 }
 
-fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
-    let st = app.state::<AppState>();
-    *st.codex.lock().unwrap() = snap.clone();
-    persist(&snap);
-    let _ = app.emit("codex", &snap);
-}
-
-pub fn start(app: AppHandle) {
-    std::thread::spawn(move || {
-        {
-            let st = app.state::<AppState>();
-            let snap = st.codex.lock().unwrap().clone();
-            let _ = app.emit("codex", &snap);
-        }
-        if !present() {
-            broadcast(&app, UsageSnapshot { status: "absent".into(), ..Default::default() });
-            // Codex is not installed: look again every 10 minutes
-            loop {
-                for _ in 0..600 {
-                    if REFRESH.swap(false, std::sync::atomic::Ordering::Relaxed) {
-                        break;
-                    }
-                    std::thread::sleep(Duration::from_secs(1));
-                }
-                if present() {
-                    break;
-                }
-            }
-        }
-        loop {
-            let snap = read_once();
-            let hold = snap.backoff_until.saturating_sub(now_ms()) / 1000;
-            broadcast(&app, snap);
-            for _ in 0..POLL_SECS.max(hold) {
-                if REFRESH.swap(false, std::sync::atomic::Ordering::Relaxed) {
-                    break;
-                }
-                std::thread::sleep(Duration::from_secs(1));
-            }
-        }
-    });
-}
-
-/// For doctor/runtime inventory: inspect one discovered Codex profile without making a usage
-/// request. This proves collector routing independently from the single-ring presentation model.
-pub fn probe_profile(profile: &crate::profile::ToolProfile) -> Option<String> {
-    if profile.tool != crate::profile::ToolKind::Codex {
-        return None;
-    }
-
-    let home = &profile.config_dir;
-    let auth = match load_credential_in(home) {
-        Some(c) => format!(
-            "auth usable{}{}",
-            if c.expired { " (access_token expired)" } else { "" },
-            c.plan.map(|p| format!(", plan={p}")).unwrap_or_default()
-        ),
-        None if auth_path_in(home).is_file() => "auth present but has no token".to_string(),
-        None => "auth not found".to_string(),
-    };
-    let rollout = newest_rollout_in(home);
-    let age = rollout
-        .as_ref()
-        .and_then(|p| std::fs::metadata(p).ok())
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| SystemTime::now().duration_since(t).ok())
-        .map(|d| format!("{} min ago", d.as_secs() / 60))
-        .unwrap_or_else(|| "?".into());
-
-    Some(format!(
-        "{}: {auth} | newest rollout {} (modified {})",
-        profile.key,
-        rollout
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "none".into()),
-        age
-    ))
-}
-
-/// For doctor: contains no secrets
-pub fn probe() -> String {
-    let auth = match load_credential() {
-        Some(c) => format!(
-            "auth.json usable{}{}",
-            if c.expired { " (access_token expired)" } else { "" },
-            c.plan.map(|p| format!(", plan={p}")).unwrap_or_default()
-        ),
-        None if auth_path().map(|p| p.is_file()).unwrap_or(false) => "auth.json present but has no token".to_string(),
-        None => "auth.json not found".to_string(),
-    };
-    let exe = find_executable();
-    let roll = newest_rollout();
-    let age = roll
-        .as_ref()
-        .and_then(|p| std::fs::metadata(p).ok())
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| SystemTime::now().duration_since(t).ok())
-        .map(|d| format!("{} min ago", d.as_secs() / 60))
-        .unwrap_or_else(|| "?".into());
-    format!(
-        "Codex: {auth} | executable {} | newest rollout {} (modified {})",
-        exe.map(|p| p.display().to_string()).unwrap_or_else(|| "not found".into()),
-        roll.map(|p| p.display().to_string()).unwrap_or_else(|| "none".into()),
-        age
-    )
-}
 
 #[cfg(test)]
 mod tests {
