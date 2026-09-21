@@ -121,24 +121,80 @@ impl Credential {
     }
 }
 
-/// Reads Claude Code's OAuth credential.
-fn read_credentials() -> Option<Credential> {
-    let home = dirs::home_dir()?;
-    for name in [".credentials.json", "credentials.json"] {
-        let p = home.join(".claude").join(name);
-        let Ok(text) = std::fs::read_to_string(&p) else {
-            continue;
-        };
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
-            continue;
-        };
-        let oauth = v.get("claudeAiOauth").unwrap_or(&v);
-        if let Some(tok) = oauth.get("accessToken").and_then(|x| x.as_str()) {
-            let expires_at = oauth.get("expiresAt").and_then(|x| x.as_f64()).map(|ms| ms as u64);
-            return Some(Credential { token: tok.to_string(), expires_at });
-        }
+fn credential_path_in(claude_home: &std::path::Path) -> Option<std::path::PathBuf> {
+    [".credentials.json", "credentials.json"]
+        .into_iter()
+        .map(|name| claude_home.join(name))
+        .find(|path| path.is_file())
+}
+
+/// Reads Claude Code's OAuth credential from one explicit config root.
+///
+/// The root can be native Windows or a resolved WSL UNC path. Reading is side-effect free.
+fn read_credentials_in(claude_home: &std::path::Path) -> Option<Credential> {
+    let path = credential_path_in(claude_home)?;
+    let text = std::fs::read_to_string(path).ok()?;
+    let v = serde_json::from_str::<serde_json::Value>(&text).ok()?;
+    let oauth = v.get("claudeAiOauth").unwrap_or(&v);
+    let token = oauth.get("accessToken").and_then(|x| x.as_str())?.trim();
+    if token.is_empty() {
+        return None;
     }
-    None
+    let expires_at = oauth.get("expiresAt").and_then(|x| x.as_f64()).map(|ms| ms as u64);
+    Some(Credential { token: token.to_string(), expires_at })
+}
+
+/// Native compatibility wrapper used by the legacy single-source Claude poller until account-aware
+/// routing is enabled in the next Gate 3 slice.
+fn read_credentials() -> Option<Credential> {
+    let home = dirs::home_dir()?.join(".claude");
+    read_credentials_in(&home)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaudeProfileObservation {
+    pub profile_key: String,
+    pub environment_id: String,
+    pub display_name: String,
+    pub config_dir: std::path::PathBuf,
+    pub credential_path: Option<std::path::PathBuf>,
+    pub auth_status: String,
+    pub expires_at: Option<u64>,
+}
+
+pub fn observe_claude_profile(
+    profile: &crate::profile::ToolProfile,
+) -> Option<ClaudeProfileObservation> {
+    if profile.tool != crate::profile::ToolKind::ClaudeCode {
+        return None;
+    }
+
+    let credential_path = credential_path_in(&profile.config_dir);
+    let credential = read_credentials_in(&profile.config_dir);
+    let now = now_ms();
+    let auth_status = match credential.as_ref() {
+        Some(c) if c.expired(now) => "expired",
+        Some(_) => "usable",
+        None if credential_path.is_some() => "invalid",
+        None => "missing",
+    }
+    .to_string();
+
+    Some(ClaudeProfileObservation {
+        profile_key: profile.key.clone(),
+        environment_id: profile.environment_id.clone(),
+        display_name: profile.display_name.clone(),
+        config_dir: profile.config_dir.clone(),
+        credential_path,
+        auth_status,
+        expires_at: credential.and_then(|c| c.expires_at),
+    })
+}
+
+pub fn observe_claude_profiles(
+    profiles: &[crate::profile::ToolProfile],
+) -> Vec<ClaudeProfileObservation> {
+    profiles.iter().filter_map(observe_claude_profile).collect()
 }
 
 /// For doctor: credential probe report (prints no secret values)
@@ -525,6 +581,68 @@ pub fn start(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn claude_profile(key: &str, root: std::path::PathBuf) -> crate::profile::ToolProfile {
+        crate::profile::ToolProfile {
+            key: key.into(),
+            tool: crate::profile::ToolKind::ClaudeCode,
+            environment_id: key.split('/').next().unwrap_or("env").into(),
+            display_name: "Claude".into(),
+            config_dir: root,
+            slug: None,
+            default_profile: true,
+        }
+    }
+
+    #[test]
+    fn claude_profile_observation_reads_explicit_root() {
+        let root = std::env::temp_dir().join(format!("runoptic-claude-profile-{}", now_ms()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join(".credentials.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "claudeAiOauth": {
+                    "accessToken": "test-token",
+                    "expiresAt": now_ms() + 60_000
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let profile = claude_profile("wsl:ubuntu/claude", root.clone());
+        let obs = observe_claude_profile(&profile).expect("Claude profile should be observed");
+
+        assert_eq!(obs.profile_key, "wsl:ubuntu/claude");
+        assert_eq!(obs.auth_status, "usable");
+        assert!(obs.credential_path.is_some());
+
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn claude_profile_observation_marks_expired_credentials() {
+        let root = std::env::temp_dir().join(format!("runoptic-claude-expired-{}", now_ms()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("credentials.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "claudeAiOauth": {
+                    "accessToken": "test-token",
+                    "expiresAt": now_ms().saturating_sub(1)
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let profile = claude_profile("windows-native/claude", root.clone());
+        let obs = observe_claude_profile(&profile).expect("Claude profile should be observed");
+
+        assert_eq!(obs.auth_status, "expired");
+
+        std::fs::remove_dir_all(root).ok();
+    }
 
     const EXP: u64 = 1_000_000_000;
 
