@@ -159,6 +159,31 @@ pub fn run() -> String {
         }
     );
 
+    let claude_observations = crate::usage::observe_claude_profiles(&profiles)
+        .into_iter()
+        .map(|obs| {
+            format!(
+                "  {}: auth={} config={} credential={}",
+                obs.profile_key,
+                obs.auth_status,
+                obs.config_dir.display(),
+                obs.credential_path
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "none".into())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\nclaude collector targets:\n{}\n",
+        if claude_observations.is_empty() {
+            "  (no Claude profiles discovered)"
+        } else {
+            &claude_observations
+        }
+    );
+
     let codex_usage_source = if codex_observation_values.is_empty() {
         "Codex: no profiles discovered".to_string()
     } else {
