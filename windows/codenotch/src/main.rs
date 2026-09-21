@@ -63,6 +63,8 @@ pub struct AppState {
     pub codex_profiles: Mutex<Vec<codex::ProfileObservation>>,
     /// Deduplicated Codex quota identities. Multiple environment profiles can point at one account.
     pub codex_accounts: Mutex<Vec<codex::AccountGroup>>,
+    /// Per-quota-account Codex polling state. One account can be backed by several profiles.
+    pub codex_account_usage: Mutex<Vec<codex::AccountUsage>>,
 }
 
 fn resolved_lang(raw: &str) -> String {
@@ -586,6 +588,11 @@ fn get_codex_profile_observations(
 #[tauri::command]
 fn get_codex_account_groups(state: tauri::State<AppState>) -> Vec<codex::AccountGroup> {
     state.codex_accounts.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_codex_account_usage(state: tauri::State<AppState>) -> Vec<codex::AccountUsage> {
+    state.codex_account_usage.lock().unwrap().clone()
 }
 
 /// Asks one provider to read again, and says whether a reading is on its way. Claude's rate-limit
@@ -1586,6 +1593,7 @@ fn main() {
             inventory: Mutex::new(None),
             codex_profiles: Mutex::new(Vec::new()),
             codex_accounts: Mutex::new(Vec::new()),
+            codex_account_usage: Mutex::new(codex::load_account_usage()),
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
@@ -1593,6 +1601,7 @@ fn main() {
             get_runtime_inventory,
             get_codex_profile_observations,
             get_codex_account_groups,
+            get_codex_account_usage,
             get_codex,
             get_cursor,
             get_grok,
@@ -1681,11 +1690,15 @@ fn main() {
                 let _ = inventory_app.emit("runtime_inventory", &snapshot);
                 let _ = inventory_app.emit("codex_profiles", &codex_profiles);
                 let _ = inventory_app.emit("codex_accounts", &codex_accounts);
+
+                // Start the account-aware poller only after environment/profile discovery completes.
+                // It owns live Codex polling from this point on and keeps the legacy single-ring
+                // event updated for the current UI.
+                codex::start_accounts(inventory_app.clone(), snapshot.profiles.clone());
             });
 
             watcher::start(handle.clone());
             usage::start(handle.clone());
-            codex::start(handle.clone());
             cursor::start(handle.clone());
             grok::start(handle.clone());
             antigravity::start(handle.clone());
