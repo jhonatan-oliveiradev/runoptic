@@ -160,10 +160,6 @@ fn load_credential_in(codex_home: &Path) -> Option<Credential> {
     Some(Credential { access_token, account_id, plan, expired })
 }
 
-fn load_credential() -> Option<Credential> {
-    load_credential_in(&codex_home()?)
-}
-
 enum LiveErr {
     NeedsAuth,
     /// Suggested wait in seconds (BACKOFF_MIN_SECS already applied)
@@ -678,6 +674,17 @@ pub fn group_accounts(profiles: &[crate::profile::ToolProfile]) -> Vec<AccountGr
     groups
 }
 
+fn profile_source_label(profile_key: &str) -> String {
+    let env = profile_key.split('/').next().unwrap_or(profile_key);
+    if env == "windows-native" {
+        "Windows".into()
+    } else if let Some(distro) = env.strip_prefix("wsl:") {
+        distro.to_string()
+    } else {
+        env.to_string()
+    }
+}
+
 fn best_local_observation<'a>(
     group: &AccountGroup,
     observations: &'a [ProfileObservation],
@@ -706,6 +713,16 @@ fn poll_account(
 
     let local_snapshot = |note: Option<String>| {
         let mut snapshot = local.map(|obs| obs.snapshot.clone()).unwrap_or_default();
+        if let Some(obs) = local {
+            if !snapshot.windows.is_empty() {
+                let provenance = format!("Local · {}", profile_source_label(&obs.profile_key));
+                snapshot.note = if snapshot.note.is_empty() {
+                    provenance
+                } else {
+                    format!("{provenance} · {}", snapshot.note)
+                };
+            }
+        }
         if let Some(note) = note {
             snapshot.note = if snapshot.note.is_empty() {
                 note
