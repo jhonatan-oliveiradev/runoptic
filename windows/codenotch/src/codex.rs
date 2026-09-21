@@ -670,6 +670,44 @@ pub struct AccountGroup {
     pub credential_state: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+pub struct AccountUsage {
+    pub key: String,
+    pub profile_keys: Vec<String>,
+    pub selected_profile_key: String,
+    pub plan: Option<String>,
+    /// live | local | none
+    pub source_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_profile_key: Option<String>,
+    pub snapshot: UsageSnapshot,
+}
+
+fn account_store_path() -> PathBuf {
+    crate::config::config_path().with_file_name("codex-accounts.json")
+}
+
+pub fn load_account_usage() -> Vec<AccountUsage> {
+    std::fs::read_to_string(account_store_path())
+        .ok()
+        .and_then(|text| serde_json::from_str::<Vec<AccountUsage>>(&text).ok())
+        .map(|mut items| {
+            for item in &mut items {
+                if !item.snapshot.windows.is_empty() {
+                    item.snapshot.status = "stale".into();
+                }
+            }
+            items
+        })
+        .unwrap_or_default()
+}
+
+fn persist_account_usage(items: &[AccountUsage]) {
+    if let Ok(text) = serde_json::to_string_pretty(items) {
+        let _ = std::fs::write(account_store_path(), text);
+    }
+}
+
 /// Group authenticated Codex profiles by vendor account id without ever serializing/logging that id.
 ///
 /// The lexicographically first source provides the public group key. A non-expired credential is
@@ -727,6 +765,202 @@ pub fn group_accounts(profiles: &[crate::profile::ToolProfile]) -> Vec<AccountGr
 
     groups.sort_by(|a, b| a.key.cmp(&b.key));
     groups
+}
+
+fn best_local_observation<'a>(
+    group: &AccountGroup,
+    observations: &'a [ProfileObservation],
+) -> Option<&'a ProfileObservation> {
+    observations
+        .iter()
+        .filter(|obs| group.profile_keys.iter().any(|key| key == &obs.profile_key))
+        .max_by(|a, b| {
+            let a_has = !a.snapshot.windows.is_empty();
+            let b_has = !b.snapshot.windows.is_empty();
+            a_has
+                .cmp(&b_has)
+                .then(a.snapshot.fetched_at.cmp(&b.snapshot.fetched_at))
+        })
+}
+
+fn poll_account(
+    group: &AccountGroup,
+    profiles: &[crate::profile::ToolProfile],
+    observations: &[ProfileObservation],
+    previous: Option<&AccountUsage>,
+) -> AccountUsage {
+    let now = now_ms();
+    let selected = profiles.iter().find(|p| p.key == group.selected_profile_key);
+    let local = best_local_observation(group, observations);
+
+    let local_snapshot = |note: Option<String>| {
+        let mut snapshot = local.map(|obs| obs.snapshot.clone()).unwrap_or_default();
+        if let Some(note) = note {
+            snapshot.note = if snapshot.note.is_empty() {
+                note
+            } else {
+                format!("{note} · {}", snapshot.note)
+            };
+        }
+        (
+            local.map(|obs| obs.profile_key.clone()),
+            if snapshot.windows.is_empty() { "none" } else { "local" }.to_string(),
+            snapshot,
+        )
+    };
+
+    let held_until = previous.map(|p| p.snapshot.backoff_until).unwrap_or(0);
+    let (source_profile_key, source_kind, mut snapshot) = if held_until > now {
+        let seconds = held_until.saturating_sub(now) / 1000;
+        let (source, kind, mut snapshot) =
+            local_snapshot(Some(format!("Rate limited — retrying in {seconds}s")));
+        snapshot.backoff_until = held_until;
+        (source, kind, snapshot)
+    } else if let Some(profile) = selected {
+        match load_credential_in(&profile.config_dir) {
+            Some(credential) if credential.expired => local_snapshot(Some(
+                "Codex credential expired — open Codex once to refresh it".into(),
+            )),
+            Some(credential) => match fetch_usage(&credential) {
+                Ok(value) => {
+                    let windows = windows_from_usage(&value);
+                    if windows.is_empty() {
+                        local_snapshot(Some("Codex reported no usage windows".into()))
+                    } else {
+                        let plan = value
+                            .get("plan_type")
+                            .and_then(|x| x.as_str())
+                            .map(String::from)
+                            .or_else(|| credential.plan.clone());
+                        (
+                            Some(profile.key.clone()),
+                            "live".into(),
+                            UsageSnapshot {
+                                status: "ok".into(),
+                                windows,
+                                fetched_at: now_ms(),
+                                note: plan
+                                    .map(|p| format!("{} · via Codex", cap(&p)))
+                                    .unwrap_or_default(),
+                                ..Default::default()
+                            },
+                        )
+                    }
+                }
+                Err(LiveErr::NeedsAuth) => local_snapshot(Some(
+                    "Codex rejected its sign-in — sign in to Codex again".into(),
+                )),
+                Err(LiveErr::RateLimited(seconds)) => {
+                    let until = now_ms() + seconds * 1000;
+                    let (source, kind, mut snapshot) =
+                        local_snapshot(Some(format!("Rate limited — retrying in {seconds}s")));
+                    snapshot.backoff_until = until;
+                    (source, kind, snapshot)
+                }
+                Err(LiveErr::Other(error)) => {
+                    local_snapshot(Some(format!("Live read failed ({error})")))
+                }
+            },
+            None => local_snapshot(Some("Codex credential is unavailable".into())),
+        }
+    } else {
+        local_snapshot(Some("Selected Codex profile is unavailable".into()))
+    };
+
+    // Preserve an account-specific server backoff even when a local fallback has an older snapshot.
+    if snapshot.backoff_until == 0 && held_until > now {
+        snapshot.backoff_until = held_until;
+    }
+
+    AccountUsage {
+        key: group.key.clone(),
+        profile_keys: group.profile_keys.clone(),
+        selected_profile_key: group.selected_profile_key.clone(),
+        plan: group.plan.clone(),
+        source_kind,
+        source_profile_key,
+        snapshot,
+    }
+}
+
+fn best_legacy_snapshot(
+    accounts: &[AccountUsage],
+    observations: &[ProfileObservation],
+) -> UsageSnapshot {
+    if let Some(first) = accounts.first() {
+        let mut snapshot = first.snapshot.clone();
+        if accounts.len() > 1 {
+            let suffix = format!("{} Codex accounts detected", accounts.len());
+            snapshot.note = if snapshot.note.is_empty() {
+                suffix
+            } else {
+                format!("{} · {suffix}", snapshot.note)
+            };
+        }
+        return snapshot;
+    }
+
+    observations
+        .iter()
+        .max_by_key(|obs| (!obs.snapshot.windows.is_empty(), obs.snapshot.fetched_at))
+        .map(|obs| obs.snapshot.clone())
+        .unwrap_or_default()
+}
+
+fn broadcast_account_usage(
+    app: &AppHandle,
+    groups: Vec<AccountGroup>,
+    accounts: Vec<AccountUsage>,
+    observations: Vec<ProfileObservation>,
+) {
+    let legacy = best_legacy_snapshot(&accounts, &observations);
+    {
+        let state = app.state::<AppState>();
+        *state.codex_accounts.lock().unwrap() = groups.clone();
+        *state.codex_account_usage.lock().unwrap() = accounts.clone();
+        *state.codex_profiles.lock().unwrap() = observations.clone();
+        *state.codex.lock().unwrap() = legacy.clone();
+    }
+
+    persist_account_usage(&accounts);
+    persist(&legacy);
+
+    let _ = app.emit("codex_accounts", &groups);
+    let _ = app.emit("codex_account_usage", &accounts);
+    let _ = app.emit("codex_profiles", &observations);
+    let _ = app.emit("codex", &legacy);
+}
+
+/// Poll quota once per vendor account, not once per installation/profile.
+///
+/// Profiles are rescanned locally each cycle so a refreshed token is picked up without restarting
+/// RunOptic. Profile discovery itself remains launch-scoped in this gate.
+pub fn start_accounts(app: AppHandle, profiles: Vec<crate::profile::ToolProfile>) {
+    std::thread::spawn(move || {
+        let mut previous = load_account_usage();
+
+        loop {
+            let observations = observe_profiles(&profiles);
+            let groups = group_accounts(&profiles);
+            let accounts = groups
+                .iter()
+                .map(|group| {
+                    let prior = previous.iter().find(|item| item.key == group.key);
+                    poll_account(group, &profiles, &observations, prior)
+                })
+                .collect::<Vec<_>>();
+
+            broadcast_account_usage(&app, groups, accounts.clone(), observations);
+            previous = accounts;
+
+            for _ in 0..POLL_SECS {
+                if REFRESH.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+        }
+    });
 }
 
 fn cap(s: &str) -> String {
@@ -910,6 +1144,39 @@ mod tests {
             slug: None,
             default_profile: true,
         }
+    }
+
+    #[test]
+    fn expired_account_uses_best_local_profile_without_network() {
+        let base = std::env::temp_dir().join(format!("runoptic-codex-expired-local-{}", now_ms()));
+        let windows = base.join("windows");
+        let wsl = base.join("wsl");
+        let past = (now_ms() / 1000).saturating_sub(3600);
+        write_codex_auth(&windows, "same-account", past);
+        write_codex_auth(&wsl, "same-account", past);
+
+        let day = wsl.join("sessions").join("2026").join("09").join("21");
+        std::fs::create_dir_all(&day).unwrap();
+        std::fs::write(
+            day.join("rollout-test.jsonl"),
+            r#"{"timestamp":"2026-09-21T12:00:00Z","rate_limits":{"primary":{"used_percent":25,"window_minutes":300},"secondary":{"used_percent":10,"window_minutes":10080}}}"#,
+        )
+        .unwrap();
+
+        let profiles = vec![
+            codex_profile("windows-native/codex", windows),
+            codex_profile("wsl:ubuntu/codex", wsl),
+        ];
+        let observations = observe_profiles(&profiles);
+        let groups = group_accounts(&profiles);
+        let usage = poll_account(&groups[0], &profiles, &observations, None);
+
+        assert_eq!(usage.source_kind, "local");
+        assert_eq!(usage.source_profile_key.as_deref(), Some("wsl:ubuntu/codex"));
+        assert_eq!(usage.snapshot.windows.len(), 2);
+        assert!(usage.snapshot.note.contains("credential expired"));
+
+        std::fs::remove_dir_all(base).ok();
     }
 
     #[test]
