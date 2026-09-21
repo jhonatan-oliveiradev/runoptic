@@ -1572,6 +1572,8 @@ fn main() {
 
     let cfg = config::load();
     let port = cfg.port;
+    let persisted_codex_accounts = codex::load_account_usage();
+    let codex_bootstrap = codex::bootstrap_legacy_snapshot(&persisted_codex_accounts);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -1584,7 +1586,7 @@ fn main() {
             store: Mutex::new(Default::default()),
             cfg: Mutex::new(cfg),
             usage: Mutex::new(usage::load_persisted()),
-            codex: Mutex::new(codex::load_persisted()),
+            codex: Mutex::new(codex_bootstrap),
             cursor: Mutex::new(cursor::load_persisted()),
             grok: Mutex::new(grok::load_persisted()),
             antigravity: Mutex::new(antigravity::load_persisted()),
@@ -1593,7 +1595,7 @@ fn main() {
             inventory: Mutex::new(None),
             codex_profiles: Mutex::new(Vec::new()),
             codex_accounts: Mutex::new(Vec::new()),
-            codex_account_usage: Mutex::new(codex::load_account_usage()),
+            codex_account_usage: Mutex::new(persisted_codex_accounts),
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
