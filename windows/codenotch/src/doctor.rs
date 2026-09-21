@@ -79,6 +79,21 @@ pub fn run() -> String {
     o += &format!("\nenvironments:\n{}\n", crate::environment::probe(&environment_report));
     o += &format!("\ntool profiles:\n{}\n", crate::profile::probe(&environment_report));
 
+    let codex_targets = crate::profile::discover(&environment_report)
+        .iter()
+        .filter_map(crate::codex::probe_profile)
+        .map(|line| format!("  {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\ncodex collector targets:\n{}\n",
+        if codex_targets.is_empty() {
+            "  (no Codex profiles discovered)"
+        } else {
+            &codex_targets
+        }
+    );
+
     o += &format!("\nusage sources:\n  {}\n  {}\n", crate::usage::probe_credentials(), crate::codex::probe());
     o += &format!("  {}\n", crate::cursor::probe());
     o += &format!("  {}\n", crate::grok::probe());
