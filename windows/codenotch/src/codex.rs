@@ -864,10 +864,32 @@ mod tests {
         ws.iter().map(|w| w.group.as_deref()).collect()
     }
 
+    fn b64url_no_pad(bytes: &[u8]) -> String {
+        const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        let mut out = String::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b0 = bytes[i];
+            let b1 = bytes.get(i + 1).copied();
+            let b2 = bytes.get(i + 2).copied();
+
+            out.push(TABLE[(b0 >> 2) as usize] as char);
+            out.push(TABLE[(((b0 & 0x03) << 4) | (b1.unwrap_or(0) >> 4)) as usize] as char);
+            if let Some(b1) = b1 {
+                out.push(TABLE[(((b1 & 0x0f) << 2) | (b2.unwrap_or(0) >> 6)) as usize] as char);
+            }
+            if let Some(b2) = b2 {
+                out.push(TABLE[(b2 & 0x3f) as usize] as char);
+            }
+            i += 3;
+        }
+        out
+    }
+
     fn write_codex_auth(root: &Path, account: &str, exp: u64) {
         std::fs::create_dir_all(root).unwrap();
         let payload = format!(r#"{{"exp":{exp}}}"#);
-        let payload = crate::antigravity::b64_encode_urlsafe(payload.as_bytes());
+        let payload = b64url_no_pad(payload.as_bytes());
         let token = format!("header.{payload}.signature");
         let body = serde_json::json!({
             "tokens": {
