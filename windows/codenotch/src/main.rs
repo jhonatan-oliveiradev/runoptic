@@ -61,6 +61,8 @@ pub struct AppState {
     /// Read-only Codex observations keyed by discovered environment/profile. These are local
     /// snapshots only until per-profile live polling/backoff is introduced.
     pub codex_profiles: Mutex<Vec<codex::ProfileObservation>>,
+    /// Deduplicated Codex quota identities. Multiple environment profiles can point at one account.
+    pub codex_accounts: Mutex<Vec<codex::AccountGroup>>,
 }
 
 fn resolved_lang(raw: &str) -> String {
@@ -579,6 +581,11 @@ fn get_codex_profile_observations(
     state: tauri::State<AppState>,
 ) -> Vec<codex::ProfileObservation> {
     state.codex_profiles.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_codex_account_groups(state: tauri::State<AppState>) -> Vec<codex::AccountGroup> {
+    state.codex_accounts.lock().unwrap().clone()
 }
 
 /// Asks one provider to read again, and says whether a reading is on its way. Claude's rate-limit
@@ -1578,12 +1585,14 @@ fn main() {
             activity: Mutex::new(Vec::new()),
             inventory: Mutex::new(None),
             codex_profiles: Mutex::new(Vec::new()),
+            codex_accounts: Mutex::new(Vec::new()),
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
             get_usage,
             get_runtime_inventory,
             get_codex_profile_observations,
+            get_codex_account_groups,
             get_codex,
             get_cursor,
             get_grok,
@@ -1657,17 +1666,21 @@ fn main() {
                 let env_count = snapshot.environment_report.environments.len();
                 let profile_count = snapshot.profiles.len();
                 let codex_profiles = codex::observe_profiles(&snapshot.profiles);
+                let codex_accounts = codex::group_accounts(&snapshot.profiles);
                 let codex_count = codex_profiles.len();
+                let account_count = codex_accounts.len();
                 {
                     let st = inventory_app.state::<AppState>();
                     *st.inventory.lock().unwrap() = Some(snapshot.clone());
                     *st.codex_profiles.lock().unwrap() = codex_profiles.clone();
+                    *st.codex_accounts.lock().unwrap() = codex_accounts.clone();
                 }
                 applog(&format!(
-                    "runtime inventory: {env_count} environments, {profile_count} tool profiles, {codex_count} Codex observations"
+                    "runtime inventory: {env_count} environments, {profile_count} tool profiles, {codex_count} Codex observations, {account_count} quota accounts"
                 ));
                 let _ = inventory_app.emit("runtime_inventory", &snapshot);
                 let _ = inventory_app.emit("codex_profiles", &codex_profiles);
+                let _ = inventory_app.emit("codex_accounts", &codex_accounts);
             });
 
             watcher::start(handle.clone());
