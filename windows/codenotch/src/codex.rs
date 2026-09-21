@@ -660,6 +660,75 @@ pub fn observe_profiles(profiles: &[crate::profile::ToolProfile]) -> Vec<Profile
     profiles.iter().filter_map(observe_profile).collect()
 }
 
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+pub struct AccountGroup {
+    /// Opaque public identity derived from source provenance, never from the vendor account id.
+    pub key: String,
+    pub profile_keys: Vec<String>,
+    pub selected_profile_key: String,
+    pub plan: Option<String>,
+    pub credential_state: String,
+}
+
+/// Group authenticated Codex profiles by vendor account id without ever serializing/logging that id.
+///
+/// The lexicographically first source provides the public group key. A non-expired credential is
+/// preferred as the future live-poll source; otherwise the first source is retained for diagnostics.
+pub fn group_accounts(profiles: &[crate::profile::ToolProfile]) -> Vec<AccountGroup> {
+    use std::collections::BTreeMap;
+
+    struct Member {
+        profile_key: String,
+        plan: Option<String>,
+        expired: bool,
+    }
+
+    let mut by_account: BTreeMap<String, Vec<Member>> = BTreeMap::new();
+
+    for profile in profiles.iter().filter(|p| p.tool == crate::profile::ToolKind::Codex) {
+        let Some(credential) = load_credential_in(&profile.config_dir) else {
+            continue;
+        };
+        by_account.entry(credential.account_id).or_default().push(Member {
+            profile_key: profile.key.clone(),
+            plan: credential.plan,
+            expired: credential.expired,
+        });
+    }
+
+    let mut groups = Vec::new();
+    for (_, mut members) in by_account {
+        members.sort_by(|a, b| a.profile_key.cmp(&b.profile_key));
+        let profile_keys = members.iter().map(|m| m.profile_key.clone()).collect::<Vec<_>>();
+        let selected = members
+            .iter()
+            .find(|m| !m.expired)
+            .unwrap_or(&members[0]);
+        let key = profile_keys[0].clone();
+        let plan = selected
+            .plan
+            .clone()
+            .or_else(|| members.iter().find_map(|m| m.plan.clone()));
+        let credential_state = if members.iter().any(|m| !m.expired) {
+            "usable"
+        } else {
+            "expired"
+        }
+        .to_string();
+
+        groups.push(AccountGroup {
+            key,
+            profile_keys,
+            selected_profile_key: selected.profile_key.clone(),
+            plan,
+            credential_state,
+        });
+    }
+
+    groups.sort_by(|a, b| a.key.cmp(&b.key));
+    groups
+}
+
 fn cap(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {
@@ -793,6 +862,81 @@ mod tests {
 
     fn groups(ws: &[LimitWindow]) -> Vec<Option<&str>> {
         ws.iter().map(|w| w.group.as_deref()).collect()
+    }
+
+    fn write_codex_auth(root: &Path, account: &str, exp: u64) {
+        std::fs::create_dir_all(root).unwrap();
+        let payload = format!(r#"{{"exp":{exp}}}"#);
+        let payload = crate::antigravity::b64_encode_urlsafe(payload.as_bytes());
+        let token = format!("header.{payload}.signature");
+        let body = serde_json::json!({
+            "tokens": {
+                "access_token": token,
+                "account_id": account
+            }
+        });
+        std::fs::write(auth_path_in(root), serde_json::to_vec(&body).unwrap()).unwrap();
+    }
+
+    fn codex_profile(key: &str, root: PathBuf) -> crate::profile::ToolProfile {
+        crate::profile::ToolProfile {
+            key: key.into(),
+            tool: crate::profile::ToolKind::Codex,
+            environment_id: key.split('/').next().unwrap_or("env").into(),
+            display_name: "Codex".into(),
+            config_dir: root,
+            slug: None,
+            default_profile: true,
+        }
+    }
+
+    #[test]
+    fn same_account_across_windows_and_wsl_becomes_one_quota_group() {
+        let base = std::env::temp_dir().join(format!("runoptic-codex-account-group-{}", now_ms()));
+        let windows = base.join("windows");
+        let wsl = base.join("wsl");
+        let future = (now_ms() / 1000) + 3600;
+        write_codex_auth(&windows, "same-account", future);
+        write_codex_auth(&wsl, "same-account", future);
+
+        let profiles = vec![
+            codex_profile("windows-native/codex", windows),
+            codex_profile("wsl:ubuntu/codex", wsl),
+        ];
+        let groups = group_accounts(&profiles);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(
+            groups[0].profile_keys,
+            vec!["windows-native/codex", "wsl:ubuntu/codex"]
+        );
+        assert_eq!(groups[0].credential_state, "usable");
+        assert_eq!(groups[0].selected_profile_key, "windows-native/codex");
+
+        std::fs::remove_dir_all(base).ok();
+    }
+
+    #[test]
+    fn account_group_prefers_a_non_expired_source() {
+        let base = std::env::temp_dir().join(format!("runoptic-codex-account-preference-{}", now_ms()));
+        let windows = base.join("windows");
+        let wsl = base.join("wsl");
+        let past = (now_ms() / 1000).saturating_sub(3600);
+        let future = (now_ms() / 1000) + 3600;
+        write_codex_auth(&windows, "same-account", past);
+        write_codex_auth(&wsl, "same-account", future);
+
+        let profiles = vec![
+            codex_profile("windows-native/codex", windows),
+            codex_profile("wsl:ubuntu/codex", wsl),
+        ];
+        let groups = group_accounts(&profiles);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].selected_profile_key, "wsl:ubuntu/codex");
+        assert_eq!(groups[0].credential_state, "usable");
+
+        std::fs::remove_dir_all(base).ok();
     }
 
     #[test]
