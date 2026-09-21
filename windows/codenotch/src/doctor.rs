@@ -80,10 +80,23 @@ pub fn run() -> String {
     o += &format!("\nenvironments:\n{}\n", crate::environment::probe(&environment_report));
     o += &format!("\ntool profiles:\n{}\n", crate::profile::probe(&environment_report));
 
-    let codex_targets = profiles
+    let codex_observation_values = crate::codex::observe_profiles(&profiles);
+
+    let codex_targets = codex_observation_values
         .iter()
-        .filter_map(crate::codex::probe_profile)
-        .map(|line| format!("  {line}"))
+        .map(|obs| {
+            format!(
+                "  {}: auth={} plan={} config={} rollout={}",
+                obs.profile_key,
+                obs.auth_status,
+                obs.plan.as_deref().unwrap_or("?"),
+                obs.config_dir.display(),
+                obs.newest_rollout
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "none".into())
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
     o += &format!(
@@ -95,8 +108,8 @@ pub fn run() -> String {
         }
     );
 
-    let codex_observations = crate::codex::observe_profiles(&profiles)
-        .into_iter()
+    let codex_observations = codex_observation_values
+        .iter()
         .map(|obs| {
             format!(
                 "  {}: auth={} plan={} snapshot={} windows={} fetched_at={} rollout={}",
@@ -146,7 +159,22 @@ pub fn run() -> String {
         }
     );
 
-    o += &format!("\nusage sources:\n  {}\n  {}\n", crate::usage::probe_credentials(), crate::codex::probe());
+    let codex_usage_source = if codex_observation_values.is_empty() {
+        "Codex: no profiles discovered".to_string()
+    } else {
+        let account_count = crate::codex::group_accounts(&profiles).len();
+        let local_with_windows = codex_observation_values
+            .iter()
+            .filter(|obs| !obs.snapshot.windows.is_empty())
+            .count();
+        format!(
+            "Codex: {} profiles | {} quota accounts | {} local snapshots",
+            codex_observation_values.len(),
+            account_count,
+            local_with_windows
+        )
+    };
+    o += &format!("\nusage sources:\n  {}\n  {}\n", crate::usage::probe_credentials(), codex_usage_source);
     o += &format!("  {}\n", crate::cursor::probe());
     o += &format!("  {}\n", crate::grok::probe());
     o += &format!("  {}\n", crate::antigravity::probe());
