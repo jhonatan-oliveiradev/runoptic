@@ -76,10 +76,11 @@ pub fn run() -> String {
     }
 
     let environment_report = crate::environment::discover();
+    let profiles = crate::profile::discover(&environment_report);
     o += &format!("\nenvironments:\n{}\n", crate::environment::probe(&environment_report));
     o += &format!("\ntool profiles:\n{}\n", crate::profile::probe(&environment_report));
 
-    let codex_targets = crate::profile::discover(&environment_report)
+    let codex_targets = profiles
         .iter()
         .filter_map(crate::codex::probe_profile)
         .map(|line| format!("  {line}"))
@@ -91,6 +92,34 @@ pub fn run() -> String {
             "  (no Codex profiles discovered)"
         } else {
             &codex_targets
+        }
+    );
+
+    let codex_observations = crate::codex::observe_profiles(&profiles)
+        .into_iter()
+        .map(|obs| {
+            format!(
+                "  {}: auth={} plan={} snapshot={} windows={} fetched_at={} rollout={}",
+                obs.profile_key,
+                obs.auth_status,
+                obs.plan.as_deref().unwrap_or("?"),
+                obs.snapshot.status,
+                obs.snapshot.windows.len(),
+                obs.snapshot.fetched_at,
+                obs.newest_rollout
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "none".into())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\ncodex local observations:\n{}\n",
+        if codex_observations.is_empty() {
+            "  (no Codex observations)"
+        } else {
+            &codex_observations
         }
     );
 
