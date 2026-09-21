@@ -571,6 +571,95 @@ fn read_once() -> UsageSnapshot {
     snap
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProfileObservation {
+    pub profile_key: String,
+    pub environment_id: String,
+    pub display_name: String,
+    pub config_dir: PathBuf,
+    pub auth_status: String,
+    pub plan: Option<String>,
+    pub credential_expired: bool,
+    pub newest_rollout: Option<PathBuf>,
+    pub snapshot: UsageSnapshot,
+}
+
+/// Read-only/local observation for a discovered Codex profile.
+///
+/// This deliberately does not hit the live usage endpoint yet. Each profile/account needs its own
+/// polling/backoff state before live requests can be enabled safely.
+pub fn observe_profile(profile: &crate::profile::ToolProfile) -> Option<ProfileObservation> {
+    if profile.tool != crate::profile::ToolKind::Codex {
+        return None;
+    }
+
+    let home = &profile.config_dir;
+    let credential = load_credential_in(home);
+    let auth_present = auth_path_in(home).is_file();
+    let credential_expired = credential.as_ref().is_some_and(|c| c.expired);
+    let plan = credential.as_ref().and_then(|c| c.plan.clone());
+    let auth_status = match credential.as_ref() {
+        Some(_) if credential_expired => "expired",
+        Some(_) => "usable",
+        None if auth_present => "invalid",
+        None => "missing",
+    }
+    .to_string();
+
+    let newest_rollout = newest_rollout_in(home);
+    let mut snapshot = UsageSnapshot::default();
+
+    match newest_rollout
+        .as_ref()
+        .and_then(|path| tail_text(path))
+        .and_then(|text| snapshot_from_rollout(&text))
+    {
+        Some((windows, recorded, rollout_plan)) => {
+            let recorded = recorded.unwrap_or(0);
+            let fresh = recorded > 0 && now_ms().saturating_sub(recorded) <= CURRENT_FOR_MS;
+            snapshot.status = if fresh { "ok" } else { "stale" }.into();
+            snapshot.windows = windows;
+            snapshot.fetched_at = recorded;
+            snapshot.note = rollout_plan
+                .or_else(|| plan.clone())
+                .map(|p| format!("{} · local Codex rollout", cap(&p)))
+                .unwrap_or_else(|| "local Codex rollout".into());
+            if credential_expired {
+                snapshot.note = format!("Credential expired · {}", snapshot.note);
+            }
+        }
+        None => {
+            snapshot.status = match auth_status.as_str() {
+                "missing" | "invalid" => "needsAuth",
+                _ => "none",
+            }
+            .into();
+            snapshot.note = match auth_status.as_str() {
+                "expired" => "Codex credential expired; no local usage snapshot found".into(),
+                "missing" => "No Codex credential or local usage snapshot found".into(),
+                "invalid" => "Codex auth.json is present but unusable".into(),
+                _ => "Codex has not recorded a local usage snapshot yet".into(),
+            };
+        }
+    }
+
+    Some(ProfileObservation {
+        profile_key: profile.key.clone(),
+        environment_id: profile.environment_id.clone(),
+        display_name: profile.display_name.clone(),
+        config_dir: home.clone(),
+        auth_status,
+        plan,
+        credential_expired,
+        newest_rollout,
+        snapshot,
+    })
+}
+
+pub fn observe_profiles(profiles: &[crate::profile::ToolProfile]) -> Vec<ProfileObservation> {
+    profiles.iter().filter_map(observe_profile).collect()
+}
+
 fn cap(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {
@@ -704,6 +793,35 @@ mod tests {
 
     fn groups(ws: &[LimitWindow]) -> Vec<Option<&str>> {
         ws.iter().map(|w| w.group.as_deref()).collect()
+    }
+
+    #[test]
+    fn profile_observation_reads_rollout_from_explicit_home() {
+        let root = std::env::temp_dir().join(format!("runoptic-codex-observation-{}", now_ms()));
+        let day = root.join("sessions").join("2026").join("09").join("21");
+        std::fs::create_dir_all(&day).unwrap();
+        std::fs::write(
+            day.join("rollout-test.jsonl"),
+            r#"{"timestamp":"2026-09-21T12:00:00Z","rate_limits":{"primary":{"used_percent":25,"window_minutes":300}}}"#,
+        )
+        .unwrap();
+
+        let profile = crate::profile::ToolProfile {
+            key: "wsl:ubuntu/codex".into(),
+            tool: crate::profile::ToolKind::Codex,
+            environment_id: "wsl:ubuntu".into(),
+            display_name: "Codex".into(),
+            config_dir: root.clone(),
+            slug: None,
+            default_profile: true,
+        };
+
+        let obs = observe_profile(&profile).expect("Codex profile should produce an observation");
+        assert_eq!(obs.profile_key, "wsl:ubuntu/codex");
+        assert_eq!(obs.snapshot.windows.len(), 1);
+        assert_eq!(obs.snapshot.windows[0].label, "5h limit");
+
+        std::fs::remove_dir_all(root).ok();
     }
 
     #[test]
