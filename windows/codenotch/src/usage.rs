@@ -275,6 +275,69 @@ pub fn observe_claude_profiles(
     profiles.iter().filter_map(observe_claude_profile).collect()
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ClaudeAccountGroup {
+    /// Opaque RunOptic identity. If Claude Code account metadata is unavailable, this is the
+    /// environment-qualified profile key so unrelated profiles are never merged by guesswork.
+    pub key: String,
+    pub profile_keys: Vec<String>,
+    pub selected_profile_key: String,
+    pub credential_state: String,
+}
+
+fn claude_auth_rank(status: &str) -> u8 {
+    match status {
+        "usable" => 0,
+        "expired" => 1,
+        "invalid" => 2,
+        "missing" => 3,
+        _ => 4,
+    }
+}
+
+pub fn group_claude_accounts(
+    observations: &[ClaudeProfileObservation],
+) -> Vec<ClaudeAccountGroup> {
+    use std::collections::BTreeMap;
+
+    let mut grouped: BTreeMap<String, Vec<&ClaudeProfileObservation>> = BTreeMap::new();
+
+    for observation in observations {
+        let identity = observation
+            .account_key
+            .clone()
+            .unwrap_or_else(|| observation.profile_key.clone());
+        grouped.entry(identity).or_default().push(observation);
+    }
+
+    let mut out = grouped
+        .into_iter()
+        .map(|(key, mut members)| {
+            members.sort_by(|a, b| {
+                claude_auth_rank(&a.auth_status)
+                    .cmp(&claude_auth_rank(&b.auth_status))
+                    .then(a.profile_key.cmp(&b.profile_key))
+            });
+            let selected = members[0];
+            let mut profile_keys = members
+                .iter()
+                .map(|member| member.profile_key.clone())
+                .collect::<Vec<_>>();
+            profile_keys.sort();
+
+            ClaudeAccountGroup {
+                key,
+                profile_keys,
+                selected_profile_key: selected.profile_key.clone(),
+                credential_state: selected.auth_status.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    out.sort_by(|a, b| a.key.cmp(&b.key));
+    out
+}
+
 /// For doctor: credential probe report (prints no secret values)
 pub fn probe_credentials() -> String {
     let cli = match find_cli() {
@@ -696,6 +759,77 @@ mod tests {
         assert!(obs.credential_path.is_some());
 
         std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn claude_account_group_merges_same_identity_across_environments() {
+        let account_key = Some("claude-account-test".to_string());
+        let observations = vec![
+            ClaudeProfileObservation {
+                profile_key: "windows-native/claude".into(),
+                environment_id: "windows-native".into(),
+                display_name: "Claude".into(),
+                config_dir: std::path::PathBuf::from(r"C:\Users\test\.claude"),
+                credential_path: None,
+                auth_status: "expired".into(),
+                expires_at: Some(1),
+                account_email: Some("user@example.com".into()),
+                account_key: account_key.clone(),
+            },
+            ClaudeProfileObservation {
+                profile_key: "wsl:ubuntu/claude".into(),
+                environment_id: "wsl:ubuntu".into(),
+                display_name: "Claude".into(),
+                config_dir: std::path::PathBuf::from(r"\\wsl.localhost\Ubuntu\home\test\.claude"),
+                credential_path: None,
+                auth_status: "usable".into(),
+                expires_at: Some(u64::MAX),
+                account_email: Some("user@example.com".into()),
+                account_key,
+            },
+        ];
+
+        let groups = group_claude_accounts(&observations);
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(
+            groups[0].profile_keys,
+            vec!["windows-native/claude", "wsl:ubuntu/claude"]
+        );
+        assert_eq!(groups[0].selected_profile_key, "wsl:ubuntu/claude");
+        assert_eq!(groups[0].credential_state, "usable");
+    }
+
+    #[test]
+    fn claude_profiles_without_identity_are_never_merged() {
+        let observations = vec![
+            ClaudeProfileObservation {
+                profile_key: "windows-native/claude".into(),
+                environment_id: "windows-native".into(),
+                display_name: "Claude".into(),
+                config_dir: std::path::PathBuf::new(),
+                credential_path: None,
+                auth_status: "missing".into(),
+                expires_at: None,
+                account_email: None,
+                account_key: None,
+            },
+            ClaudeProfileObservation {
+                profile_key: "wsl:ubuntu/claude".into(),
+                environment_id: "wsl:ubuntu".into(),
+                display_name: "Claude".into(),
+                config_dir: std::path::PathBuf::new(),
+                credential_path: None,
+                auth_status: "usable".into(),
+                expires_at: None,
+                account_email: None,
+                account_key: None,
+            },
+        ];
+
+        let groups = group_claude_accounts(&observations);
+
+        assert_eq!(groups.len(), 2);
     }
 
     #[test]
