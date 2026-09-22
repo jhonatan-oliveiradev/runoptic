@@ -160,6 +160,79 @@ pub struct ClaudeProfileObservation {
     pub credential_path: Option<std::path::PathBuf>,
     pub auth_status: String,
     pub expires_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_email: Option<String>,
+    /// Opaque RunOptic identity derived from Claude Code's account metadata.
+    ///
+    /// The raw organization UUID is intentionally never serialized or logged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ClaudeAccountMetadata {
+    email_address: Option<String>,
+    organization_uuid: Option<String>,
+}
+
+fn claude_account_file(profile: &crate::profile::ToolProfile) -> std::path::PathBuf {
+    if profile.default_profile {
+        profile
+            .config_dir
+            .parent()
+            .unwrap_or(&profile.config_dir)
+            .join(".claude.json")
+    } else {
+        profile.config_dir.join(".claude.json")
+    }
+}
+
+fn read_claude_account(profile: &crate::profile::ToolProfile) -> ClaudeAccountMetadata {
+    let path = claude_account_file(profile);
+    let Ok(file) = std::fs::File::open(path) else {
+        return ClaudeAccountMetadata::default();
+    };
+    let Ok(value) = serde_json::from_reader::<_, serde_json::Value>(std::io::BufReader::new(file)) else {
+        return ClaudeAccountMetadata::default();
+    };
+    let Some(account) = value.get("oauthAccount") else {
+        return ClaudeAccountMetadata::default();
+    };
+
+    let clean = |value: Option<&str>| {
+        value
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+
+    ClaudeAccountMetadata {
+        email_address: clean(account.get("emailAddress").and_then(|value| value.as_str())),
+        organization_uuid: clean(
+            account
+                .get("organizationUuid")
+                .and_then(|value| value.as_str()),
+        ),
+    }
+}
+
+fn stable_claude_account_key(metadata: &ClaudeAccountMetadata) -> Option<String> {
+    let email = metadata.email_address.as_deref()?;
+    let organization = metadata.organization_uuid.as_deref()?;
+
+    // FNV-1a is not used as security; it only keeps vendor identifiers out of runtime JSON/logs.
+    // The input never leaves memory. Email + organization together avoid merging two seats in the
+    // same organization when only the organization UUID matches.
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for byte in organization
+        .bytes()
+        .chain(std::iter::once(0))
+        .chain(email.to_ascii_lowercase().bytes())
+    {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    Some(format!("claude-account-{hash:016x}"))
 }
 
 pub fn observe_claude_profile(
@@ -180,6 +253,9 @@ pub fn observe_claude_profile(
     }
     .to_string();
 
+    let account = read_claude_account(profile);
+    let account_key = stable_claude_account_key(&account);
+
     Some(ClaudeProfileObservation {
         profile_key: profile.key.clone(),
         environment_id: profile.environment_id.clone(),
@@ -188,6 +264,8 @@ pub fn observe_claude_profile(
         credential_path,
         auth_status,
         expires_at: credential.and_then(|c| c.expires_at),
+        account_email: account.email_address,
+        account_key,
     })
 }
 
@@ -618,6 +696,46 @@ mod tests {
         assert!(obs.credential_path.is_some());
 
         std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn default_claude_profile_reads_account_file_beside_config_directory() {
+        let home = std::env::temp_dir().join(format!("runoptic-claude-account-{}", now_ms()));
+        let config = home.join(".claude");
+        std::fs::create_dir_all(&config).unwrap();
+        std::fs::write(
+            home.join(".claude.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "oauthAccount": {
+                    "emailAddress": "User@Example.com",
+                    "organizationUuid": "org-test"
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let profile = claude_profile("wsl:ubuntu/claude", config);
+        let obs = observe_claude_profile(&profile).unwrap();
+
+        assert_eq!(obs.account_email.as_deref(), Some("User@Example.com"));
+        assert!(obs.account_key.as_deref().unwrap().starts_with("claude-account-"));
+
+        std::fs::remove_dir_all(home).ok();
+    }
+
+    #[test]
+    fn claude_account_identity_requires_email_and_organization() {
+        let with_both = ClaudeAccountMetadata {
+            email_address: Some("a@example.com".into()),
+            organization_uuid: Some("org".into()),
+        };
+        let missing_email = ClaudeAccountMetadata {
+            email_address: None,
+            organization_uuid: Some("org".into()),
+        };
+        assert!(stable_claude_account_key(&with_both).is_some());
+        assert!(stable_claude_account_key(&missing_email).is_none());
     }
 
     #[test]
