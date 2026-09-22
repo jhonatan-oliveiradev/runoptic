@@ -66,6 +66,8 @@ pub struct AppState {
     /// Claude quota identities. Profiles are merged only when Claude Code exposes both matching
     /// account email and organization metadata; otherwise they remain independent.
     pub claude_accounts: Mutex<Vec<usage::ClaudeAccountGroup>>,
+    /// Claude Code CLI availability per environment/profile.
+    pub claude_clis: Mutex<Vec<usage::ClaudeCliObservation>>,
     /// Deduplicated Codex quota identities. Multiple environment profiles can point at one account.
     pub codex_accounts: Mutex<Vec<codex::AccountGroup>>,
     /// Per-quota-account Codex polling state. One account can be backed by several profiles.
@@ -602,6 +604,13 @@ fn get_claude_account_groups(
     state: tauri::State<AppState>,
 ) -> Vec<usage::ClaudeAccountGroup> {
     state.claude_accounts.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_claude_cli_observations(
+    state: tauri::State<AppState>,
+) -> Vec<usage::ClaudeCliObservation> {
+    state.claude_clis.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -1615,6 +1624,7 @@ fn main() {
             codex_profiles: Mutex::new(Vec::new()),
             claude_profiles: Mutex::new(Vec::new()),
             claude_accounts: Mutex::new(Vec::new()),
+            claude_clis: Mutex::new(Vec::new()),
             codex_accounts: Mutex::new(Vec::new()),
             codex_account_usage: Mutex::new(persisted_codex_accounts),
         })
@@ -1625,6 +1635,7 @@ fn main() {
             get_codex_profile_observations,
             get_claude_profile_observations,
             get_claude_account_groups,
+            get_claude_cli_observations,
             get_codex_account_groups,
             get_codex_account_usage,
             get_codex,
@@ -1702,10 +1713,12 @@ fn main() {
                 let codex_profiles = codex::observe_profiles(&snapshot.profiles);
                 let claude_profiles = usage::observe_claude_profiles(&snapshot.profiles);
                 let claude_accounts = usage::group_claude_accounts(&claude_profiles);
+                let claude_clis = usage::observe_claude_clis(&snapshot.profiles);
                 let codex_accounts = codex::group_accounts(&snapshot.profiles);
                 let codex_count = codex_profiles.len();
                 let claude_count = claude_profiles.len();
                 let claude_account_count = claude_accounts.len();
+                let claude_cli_count = claude_clis.iter().filter(|obs| obs.available).count();
                 let codex_account_count = codex_accounts.len();
                 {
                     let st = inventory_app.state::<AppState>();
@@ -1713,15 +1726,17 @@ fn main() {
                     *st.codex_profiles.lock().unwrap() = codex_profiles.clone();
                     *st.claude_profiles.lock().unwrap() = claude_profiles.clone();
                     *st.claude_accounts.lock().unwrap() = claude_accounts.clone();
+                    *st.claude_clis.lock().unwrap() = claude_clis.clone();
                     *st.codex_accounts.lock().unwrap() = codex_accounts.clone();
                 }
                 applog(&format!(
-                    "runtime inventory: {env_count} environments, {profile_count} tool profiles, {codex_count} Codex observations, {claude_count} Claude observations, {codex_account_count} Codex quota accounts, {claude_account_count} Claude quota accounts"
+                    "runtime inventory: {env_count} environments, {profile_count} tool profiles, {codex_count} Codex observations, {claude_count} Claude observations, {codex_account_count} Codex quota accounts, {claude_account_count} Claude quota accounts, {claude_cli_count} Claude CLIs"
                 ));
                 let _ = inventory_app.emit("runtime_inventory", &snapshot);
                 let _ = inventory_app.emit("codex_profiles", &codex_profiles);
                 let _ = inventory_app.emit("claude_profiles", &claude_profiles);
                 let _ = inventory_app.emit("claude_accounts", &claude_accounts);
+                let _ = inventory_app.emit("claude_clis", &claude_clis);
                 let _ = inventory_app.emit("codex_accounts", &codex_accounts);
 
                 // Start the account-aware poller only after environment/profile discovery completes.
