@@ -208,6 +208,28 @@ pub fn run() -> String {
         }
     );
 
+    let claude_cli_targets = crate::usage::observe_claude_clis(&profiles)
+        .into_iter()
+        .map(|obs| {
+            format!(
+                "  {}: available={} command={} diagnostic={}",
+                obs.profile_key,
+                obs.available,
+                obs.command.as_deref().unwrap_or("none"),
+                obs.diagnostic
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\nclaude execution targets:\n{}\n",
+        if claude_cli_targets.is_empty() {
+            "  (no Claude execution targets)"
+        } else {
+            &claude_cli_targets
+        }
+    );
+
     let codex_usage_source = if codex_observation_values.is_empty() {
         "Codex: no profiles discovered".to_string()
     } else {
