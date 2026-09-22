@@ -159,13 +159,15 @@ pub fn run() -> String {
         }
     );
 
-    let claude_observations = crate::usage::observe_claude_profiles(&profiles)
-        .into_iter()
+    let claude_observation_values = crate::usage::observe_claude_profiles(&profiles);
+    let claude_observations = claude_observation_values
+        .iter()
         .map(|obs| {
             format!(
-                "  {}: auth={} config={} credential={}",
+                "  {}: auth={} account={} config={} credential={}",
                 obs.profile_key,
                 obs.auth_status,
+                obs.account_key.as_deref().unwrap_or("unknown"),
                 obs.config_dir.display(),
                 obs.credential_path
                     .as_ref()
@@ -181,6 +183,28 @@ pub fn run() -> String {
             "  (no Claude profiles discovered)"
         } else {
             &claude_observations
+        }
+    );
+
+    let claude_accounts = crate::usage::group_claude_accounts(&claude_observation_values)
+        .into_iter()
+        .map(|group| {
+            format!(
+                "  {}: profiles=[{}] selected={} credential={}",
+                group.key,
+                group.profile_keys.join(", "),
+                group.selected_profile_key,
+                group.credential_state
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\nclaude quota accounts:\n{}\n",
+        if claude_accounts.is_empty() {
+            "  (no Claude quota identities)"
+        } else {
+            &claude_accounts
         }
     );
 
