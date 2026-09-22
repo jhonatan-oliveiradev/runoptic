@@ -295,6 +295,154 @@ fn claude_auth_rank(status: &str) -> u8 {
     }
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaudeCliObservation {
+    pub profile_key: String,
+    pub environment_id: String,
+    pub available: bool,
+    pub command: Option<String>,
+    pub diagnostic: String,
+}
+
+fn decode_cli_output(bytes: &[u8]) -> String {
+    if bytes.is_empty() {
+        return String::new();
+    }
+    let odd_nuls = bytes
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .filter(|&&byte| byte == 0)
+        .count();
+    let looks_utf16le = bytes.starts_with(&[0xff, 0xfe])
+        || (bytes.len() >= 4 && odd_nuls * 4 >= bytes.len());
+
+    if looks_utf16le {
+        let start = if bytes.starts_with(&[0xff, 0xfe]) { 2 } else { 0 };
+        let units = bytes[start..]
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<_>>();
+        String::from_utf16_lossy(&units)
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+fn run_wsl_claude_probe(distro: &str) -> Result<String, String> {
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    let mut cmd = Command::new("wsl.exe");
+    cmd.args([
+        "-d",
+        distro,
+        "--",
+        "sh",
+        "-lc",
+        "command -v claude 2>/dev/null || command -v claude-code 2>/dev/null || true",
+    ])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|err| format!("wsl.exe unavailable: {err}"))?;
+    let started = Instant::now();
+    let timeout = Duration::from_secs(5);
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                let output = child
+                    .wait_with_output()
+                    .map_err(|err| format!("could not read WSL CLI probe output: {err}"))?;
+                return Ok(decode_cli_output(&output.stdout).trim().to_string());
+            }
+            Ok(None) if started.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("WSL Claude CLI probe timed out after 5s".into());
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(25)),
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("could not wait for WSL Claude CLI probe: {err}"));
+            }
+        }
+    }
+}
+
+pub fn observe_claude_cli(
+    profile: &crate::profile::ToolProfile,
+) -> Option<ClaudeCliObservation> {
+    if profile.tool != crate::profile::ToolKind::ClaudeCode {
+        return None;
+    }
+
+    if profile.environment_id == "windows-native" {
+        let cli = find_cli();
+        return Some(ClaudeCliObservation {
+            profile_key: profile.key.clone(),
+            environment_id: profile.environment_id.clone(),
+            available: cli.is_some(),
+            command: cli.as_ref().map(|p| p.display().to_string()),
+            diagnostic: if cli.is_some() {
+                "native Claude Code CLI found".into()
+            } else {
+                "native Claude Code CLI not found".into()
+            },
+        });
+    }
+
+    if let Some(distro) = profile.environment_id.strip_prefix("wsl:") {
+        return Some(match run_wsl_claude_probe(distro) {
+            Ok(path) if !path.is_empty() => ClaudeCliObservation {
+                profile_key: profile.key.clone(),
+                environment_id: profile.environment_id.clone(),
+                available: true,
+                command: Some(path),
+                diagnostic: "Claude Code CLI found in running WSL distro".into(),
+            },
+            Ok(_) => ClaudeCliObservation {
+                profile_key: profile.key.clone(),
+                environment_id: profile.environment_id.clone(),
+                available: false,
+                command: None,
+                diagnostic: "Claude Code CLI not found in WSL PATH".into(),
+            },
+            Err(err) => ClaudeCliObservation {
+                profile_key: profile.key.clone(),
+                environment_id: profile.environment_id.clone(),
+                available: false,
+                command: None,
+                diagnostic: err,
+            },
+        });
+    }
+
+    Some(ClaudeCliObservation {
+        profile_key: profile.key.clone(),
+        environment_id: profile.environment_id.clone(),
+        available: false,
+        command: None,
+        diagnostic: "unsupported Claude execution environment".into(),
+    })
+}
+
+pub fn observe_claude_clis(
+    profiles: &[crate::profile::ToolProfile],
+) -> Vec<ClaudeCliObservation> {
+    profiles.iter().filter_map(observe_claude_cli).collect()
+}
+
 pub fn group_claude_accounts(
     observations: &[ClaudeProfileObservation],
 ) -> Vec<ClaudeAccountGroup> {
@@ -759,6 +907,17 @@ mod tests {
         assert!(obs.credential_path.is_some());
 
         std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn native_claude_cli_observation_never_probes_wsl() {
+        let profile = claude_profile(
+            "windows-native/claude",
+            std::path::PathBuf::from(r"C:\Users\test\.claude"),
+        );
+        let obs = observe_claude_cli(&profile).unwrap();
+        assert_eq!(obs.environment_id, "windows-native");
+        assert!(obs.diagnostic.contains("native Claude Code CLI"));
     }
 
     #[test]
