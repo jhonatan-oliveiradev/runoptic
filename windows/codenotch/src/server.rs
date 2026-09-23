@@ -19,15 +19,36 @@ pub fn start(app: AppHandle, port: u16) {
             let url = req.url().to_string();
 
             if url == "/v1/telemetry/nx-agent" {
-                if *req.method() != tiny_http::Method::Post {
-                    let _ = req.respond(
-                        tiny_http::Response::from_string("method not allowed").with_status_code(405),
-                    );
-                    continue;
-                }
                 if is_forbidden(&req) {
                     let _ = req.respond(
                         tiny_http::Response::from_string("forbidden").with_status_code(403),
+                    );
+                    continue;
+                }
+
+                if *req.method() == tiny_http::Method::Get {
+                    let snapshot = {
+                        let state = app.state::<AppState>();
+                        state.nx_agent.lock().unwrap().snapshot()
+                    };
+                    let body = serde_json::to_string(&snapshot)
+                        .unwrap_or_else(|_| r#"{"error":"serialization failed"}"#.into());
+                    let response = tiny_http::Response::from_string(body)
+                        .with_status_code(200)
+                        .with_header(
+                            tiny_http::Header::from_bytes(
+                                &b"Content-Type"[..],
+                                &b"application/json; charset=utf-8"[..],
+                            )
+                            .unwrap(),
+                        );
+                    let _ = req.respond(response);
+                    continue;
+                }
+
+                if *req.method() != tiny_http::Method::Post {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("method not allowed").with_status_code(405),
                     );
                     continue;
                 }
