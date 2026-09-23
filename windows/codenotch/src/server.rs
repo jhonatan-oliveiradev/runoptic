@@ -29,7 +29,8 @@ pub fn start(app: AppHandle, port: u16) {
                 if *req.method() == tiny_http::Method::Get {
                     let snapshot = {
                         let state = app.state::<AppState>();
-                        state.nx_agent.lock().unwrap().snapshot()
+                        let snapshot = state.nx_agent.lock().unwrap().snapshot();
+                        snapshot
                     };
                     let body = serde_json::to_string(&snapshot)
                         .unwrap_or_else(|_| r#"{"error":"serialization failed"}"#.into());
