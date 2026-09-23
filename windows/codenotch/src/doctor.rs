@@ -230,6 +230,32 @@ pub fn run() -> String {
         }
     );
 
+    let persisted_claude_accounts = crate::usage::load_claude_account_usage()
+        .into_iter()
+        .map(|account| {
+            format!(
+                "  {}: profiles=[{}] selected={} source={} source_profile={} status={} windows={} fetched_at={}",
+                account.key,
+                account.profile_keys.join(", "),
+                account.selected_profile_key,
+                account.source_kind,
+                account.source_profile_key.as_deref().unwrap_or("none"),
+                account.snapshot.status,
+                account.snapshot.windows.len(),
+                account.snapshot.fetched_at
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\nclaude account usage cache:\n{}\n",
+        if persisted_claude_accounts.is_empty() {
+            "  (no persisted Claude account usage)"
+        } else {
+            &persisted_claude_accounts
+        }
+    );
+
     let codex_usage_source = if codex_observation_values.is_empty() {
         "Codex: no profiles discovered".to_string()
     } else {
