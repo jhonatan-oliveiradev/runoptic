@@ -3,10 +3,14 @@
 mod autostart;
 mod config;
 mod doctor;
+mod environment;
+mod profile;
+mod inventory;
 mod focus;
 mod hooks_install;
 mod i18n;
 mod notchmenu;
+mod nx_agent;
 mod server;
 mod state;
 mod tray;
@@ -52,6 +56,25 @@ pub struct AppState {
     pub glyphs: Mutex<std::collections::HashMap<String, glyphs::Glyph>>,
     /// Working state of the non-Claude providers (Cursor reports it; Codex and Antigravity are inferred from recent writes)
     pub activity: Mutex<Vec<activity::Activity>>,
+    /// Privacy-preserving telemetry emitted by NX Agent over the local collector endpoint.
+    pub nx_agent: Mutex<nx_agent::Collector>,
+    /// Environment/profile inventory. Populated off the UI thread after startup so WSL discovery
+    /// cannot delay the notch becoming visible.
+    pub inventory: Mutex<Option<inventory::RuntimeInventory>>,
+    /// Read-only Codex observations keyed by discovered environment/profile.
+    pub codex_profiles: Mutex<Vec<codex::ProfileObservation>>,
+    /// Read-only Claude credential observations per environment/profile. WSL renewal/polling is
+    /// deliberately deferred until execution context is explicit.
+    pub claude_profiles: Mutex<Vec<usage::ClaudeProfileObservation>>,
+    /// Claude quota identities. Profiles are merged only when Claude Code exposes both matching
+    /// account email and organization metadata; otherwise they remain independent.
+    pub claude_accounts: Mutex<Vec<usage::ClaudeAccountGroup>>,
+    /// Claude Code CLI availability per environment/profile.
+    pub claude_clis: Mutex<Vec<usage::ClaudeCliObservation>>,
+    /// Deduplicated Codex quota identities. Multiple environment profiles can point at one account.
+    pub codex_accounts: Mutex<Vec<codex::AccountGroup>>,
+    /// Per-quota-account Codex polling state. One account can be backed by several profiles.
+    pub codex_account_usage: Mutex<Vec<codex::AccountUsage>>,
 }
 
 fn resolved_lang(raw: &str) -> String {
@@ -560,6 +583,49 @@ fn get_usage(state: tauri::State<AppState>) -> usage::UsageSnapshot {
     state.usage.lock().unwrap().clone()
 }
 
+#[tauri::command]
+fn get_runtime_inventory(state: tauri::State<AppState>) -> Option<inventory::RuntimeInventory> {
+    state.inventory.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_codex_profile_observations(
+    state: tauri::State<AppState>,
+) -> Vec<codex::ProfileObservation> {
+    state.codex_profiles.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_claude_profile_observations(
+    state: tauri::State<AppState>,
+) -> Vec<usage::ClaudeProfileObservation> {
+    state.claude_profiles.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_claude_account_groups(
+    state: tauri::State<AppState>,
+) -> Vec<usage::ClaudeAccountGroup> {
+    state.claude_accounts.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_claude_cli_observations(
+    state: tauri::State<AppState>,
+) -> Vec<usage::ClaudeCliObservation> {
+    state.claude_clis.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_codex_account_groups(state: tauri::State<AppState>) -> Vec<codex::AccountGroup> {
+    state.codex_accounts.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_codex_account_usage(state: tauri::State<AppState>) -> Vec<codex::AccountUsage> {
+    state.codex_account_usage.lock().unwrap().clone()
+}
+
 /// Asks one provider to read again, and says whether a reading is on its way. Claude's rate-limit
 /// wait stands, as on the Mac: asking early spends a request and can double the wait.
 pub(crate) fn refresh_provider(app: &AppHandle, provider: &str) -> bool {
@@ -601,6 +667,11 @@ fn get_antigravity(state: tauri::State<AppState>) -> usage::UsageSnapshot {
 #[tauri::command]
 fn get_activity(state: tauri::State<AppState>) -> Vec<activity::Activity> {
     state.activity.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_nx_agent_telemetry(state: tauri::State<AppState>) -> nx_agent::Snapshot {
+    state.nx_agent.lock().unwrap().snapshot()
 }
 
 #[tauri::command]
@@ -1537,6 +1608,8 @@ fn main() {
 
     let cfg = config::load();
     let port = cfg.port;
+    let persisted_codex_accounts = codex::load_account_usage();
+    let codex_bootstrap = codex::bootstrap_legacy_snapshot(&persisted_codex_accounts);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -1549,22 +1622,38 @@ fn main() {
             store: Mutex::new(Default::default()),
             cfg: Mutex::new(cfg),
             usage: Mutex::new(usage::load_persisted()),
-            codex: Mutex::new(codex::load_persisted()),
+            codex: Mutex::new(codex_bootstrap),
             cursor: Mutex::new(cursor::load_persisted()),
             grok: Mutex::new(grok::load_persisted()),
             antigravity: Mutex::new(antigravity::load_persisted()),
             glyphs: Mutex::new(Default::default()),
             activity: Mutex::new(Vec::new()),
+            nx_agent: Mutex::new(Default::default()),
+            inventory: Mutex::new(None),
+            codex_profiles: Mutex::new(Vec::new()),
+            claude_profiles: Mutex::new(Vec::new()),
+            claude_accounts: Mutex::new(Vec::new()),
+            claude_clis: Mutex::new(Vec::new()),
+            codex_accounts: Mutex::new(Vec::new()),
+            codex_account_usage: Mutex::new(persisted_codex_accounts),
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
             get_usage,
+            get_runtime_inventory,
+            get_codex_profile_observations,
+            get_claude_profile_observations,
+            get_claude_account_groups,
+            get_claude_cli_observations,
+            get_codex_account_groups,
+            get_codex_account_usage,
             get_codex,
             get_cursor,
             get_grok,
             get_antigravity,
             get_glyphs,
             get_activity,
+            get_nx_agent_telemetry,
             open_data_dir,
             drag_begin,
             refresh_ring,
@@ -1622,9 +1711,52 @@ fn main() {
             // Honours the saved switches: a notch hidden last time stays hidden.
             apply_visibility(&handle);
             server::start(handle.clone(), port);
+
+            // WSL/profile discovery can take a moment on a machine with running distributions.
+            // Keep it off the UI thread and cache one launch-time snapshot for every consumer.
+            let inventory_app = handle.clone();
+            std::thread::spawn(move || {
+                activity::lower_thread_priority();
+                let snapshot = inventory::scan();
+                let env_count = snapshot.environment_report.environments.len();
+                let profile_count = snapshot.profiles.len();
+                let codex_profiles = codex::observe_profiles(&snapshot.profiles);
+                let claude_profiles = usage::observe_claude_profiles(&snapshot.profiles);
+                let claude_accounts = usage::group_claude_accounts(&claude_profiles);
+                let claude_clis = usage::observe_claude_clis(&snapshot.profiles);
+                let codex_accounts = codex::group_accounts(&snapshot.profiles);
+                let codex_count = codex_profiles.len();
+                let claude_count = claude_profiles.len();
+                let claude_account_count = claude_accounts.len();
+                let claude_cli_count = claude_clis.iter().filter(|obs| obs.available).count();
+                let codex_account_count = codex_accounts.len();
+                {
+                    let st = inventory_app.state::<AppState>();
+                    *st.inventory.lock().unwrap() = Some(snapshot.clone());
+                    *st.codex_profiles.lock().unwrap() = codex_profiles.clone();
+                    *st.claude_profiles.lock().unwrap() = claude_profiles.clone();
+                    *st.claude_accounts.lock().unwrap() = claude_accounts.clone();
+                    *st.claude_clis.lock().unwrap() = claude_clis.clone();
+                    *st.codex_accounts.lock().unwrap() = codex_accounts.clone();
+                }
+                applog(&format!(
+                    "runtime inventory: {env_count} environments, {profile_count} tool profiles, {codex_count} Codex observations, {claude_count} Claude observations, {codex_account_count} Codex quota accounts, {claude_account_count} Claude quota accounts, {claude_cli_count} Claude CLIs"
+                ));
+                let _ = inventory_app.emit("runtime_inventory", &snapshot);
+                let _ = inventory_app.emit("codex_profiles", &codex_profiles);
+                let _ = inventory_app.emit("claude_profiles", &claude_profiles);
+                let _ = inventory_app.emit("claude_accounts", &claude_accounts);
+                let _ = inventory_app.emit("claude_clis", &claude_clis);
+                let _ = inventory_app.emit("codex_accounts", &codex_accounts);
+
+                // Start the account-aware poller only after environment/profile discovery completes.
+                // It owns live Codex polling from this point on and keeps the legacy single-ring
+                // event updated for the current UI.
+                codex::start_accounts(inventory_app.clone(), snapshot.profiles.clone());
+            });
+
             watcher::start(handle.clone());
             usage::start(handle.clone());
-            codex::start(handle.clone());
             cursor::start(handle.clone());
             grok::start(handle.clone());
             antigravity::start(handle.clone());

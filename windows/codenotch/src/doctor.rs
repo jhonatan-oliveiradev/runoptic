@@ -75,7 +75,177 @@ pub fn run() -> String {
         }
     }
 
-    o += &format!("\nusage sources:\n  {}\n  {}\n", crate::usage::probe_credentials(), crate::codex::probe());
+    let environment_report = crate::environment::discover();
+    let profiles = crate::profile::discover(&environment_report);
+    o += &format!("\nenvironments:\n{}\n", crate::environment::probe(&environment_report));
+    o += &format!("\ntool profiles:\n{}\n", crate::profile::probe(&environment_report));
+
+    let codex_observation_values = crate::codex::observe_profiles(&profiles);
+
+    let codex_targets = codex_observation_values
+        .iter()
+        .map(|obs| {
+            format!(
+                "  {}: auth={} plan={} config={} rollout={}",
+                obs.profile_key,
+                obs.auth_status,
+                obs.plan.as_deref().unwrap_or("?"),
+                obs.config_dir.display(),
+                obs.newest_rollout
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "none".into())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\ncodex collector targets:\n{}\n",
+        if codex_targets.is_empty() {
+            "  (no Codex profiles discovered)"
+        } else {
+            &codex_targets
+        }
+    );
+
+    let codex_observations = codex_observation_values
+        .iter()
+        .map(|obs| {
+            format!(
+                "  {}: auth={} plan={} snapshot={} windows={} fetched_at={} rollout={}",
+                obs.profile_key,
+                obs.auth_status,
+                obs.plan.as_deref().unwrap_or("?"),
+                obs.snapshot.status,
+                obs.snapshot.windows.len(),
+                obs.snapshot.fetched_at,
+                obs.newest_rollout
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "none".into())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\ncodex local observations:\n{}\n",
+        if codex_observations.is_empty() {
+            "  (no Codex observations)"
+        } else {
+            &codex_observations
+        }
+    );
+
+    let codex_accounts = crate::codex::group_accounts(&profiles)
+        .into_iter()
+        .map(|group| {
+            format!(
+                "  {}: profiles=[{}] selected={} credential={} plan={}",
+                group.key,
+                group.profile_keys.join(", "),
+                group.selected_profile_key,
+                group.credential_state,
+                group.plan.as_deref().unwrap_or("?")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\ncodex quota accounts:\n{}\n",
+        if codex_accounts.is_empty() {
+            "  (no authenticated Codex account identities)"
+        } else {
+            &codex_accounts
+        }
+    );
+
+    let claude_observation_values = crate::usage::observe_claude_profiles(&profiles);
+    let claude_observations = claude_observation_values
+        .iter()
+        .map(|obs| {
+            format!(
+                "  {}: auth={} account={} config={} credential={}",
+                obs.profile_key,
+                obs.auth_status,
+                obs.account_key.as_deref().unwrap_or("unknown"),
+                obs.config_dir.display(),
+                obs.credential_path
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "none".into())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\nclaude collector targets:\n{}\n",
+        if claude_observations.is_empty() {
+            "  (no Claude profiles discovered)"
+        } else {
+            &claude_observations
+        }
+    );
+
+    let claude_accounts = crate::usage::group_claude_accounts(&claude_observation_values)
+        .into_iter()
+        .map(|group| {
+            format!(
+                "  {}: profiles=[{}] selected={} credential={}",
+                group.key,
+                group.profile_keys.join(", "),
+                group.selected_profile_key,
+                group.credential_state
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\nclaude quota accounts:\n{}\n",
+        if claude_accounts.is_empty() {
+            "  (no Claude quota identities)"
+        } else {
+            &claude_accounts
+        }
+    );
+
+    let claude_cli_targets = crate::usage::observe_claude_clis(&profiles)
+        .into_iter()
+        .map(|obs| {
+            format!(
+                "  {}: available={} command={} diagnostic={}",
+                obs.profile_key,
+                obs.available,
+                obs.command.as_deref().unwrap_or("none"),
+                obs.diagnostic
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    o += &format!(
+        "\nclaude execution targets:\n{}\n",
+        if claude_cli_targets.is_empty() {
+            "  (no Claude execution targets)"
+        } else {
+            &claude_cli_targets
+        }
+    );
+
+    let codex_usage_source = if codex_observation_values.is_empty() {
+        "Codex: no profiles discovered".to_string()
+    } else {
+        let account_count = crate::codex::group_accounts(&profiles).len();
+        let local_with_windows = codex_observation_values
+            .iter()
+            .filter(|obs| !obs.snapshot.windows.is_empty())
+            .count();
+        format!(
+            "Codex: {} profiles | {} quota accounts | {} local snapshots",
+            codex_observation_values.len(),
+            account_count,
+            local_with_windows
+        )
+    };
+    o += &format!("\nusage sources:\n  {}\n  {}\n", crate::usage::probe_credentials(), codex_usage_source);
     o += &format!("  {}\n", crate::cursor::probe());
     o += &format!("  {}\n", crate::grok::probe());
     o += &format!("  {}\n", crate::antigravity::probe());
