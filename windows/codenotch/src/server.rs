@@ -4,7 +4,7 @@
 use crate::state::HookEvent;
 use crate::AppState;
 use std::io::Read;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub fn start(app: AppHandle, port: u16) {
     std::thread::spawn(move || {
@@ -17,6 +17,96 @@ pub fn start(app: AppHandle, port: u16) {
         };
         for mut req in server.incoming_requests() {
             let url = req.url().to_string();
+
+            if url == "/v1/telemetry/nx-agent" {
+                if is_forbidden(&req) {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("forbidden").with_status_code(403),
+                    );
+                    continue;
+                }
+
+                if *req.method() == tiny_http::Method::Get {
+                    let snapshot = {
+                        let state = app.state::<AppState>();
+                        let snapshot = state.nx_agent.lock().unwrap().snapshot();
+                        snapshot
+                    };
+                    let body = serde_json::to_string(&snapshot)
+                        .unwrap_or_else(|_| r#"{"error":"serialization failed"}"#.into());
+                    let response = tiny_http::Response::from_string(body)
+                        .with_status_code(200)
+                        .with_header(
+                            tiny_http::Header::from_bytes(
+                                &b"Content-Type"[..],
+                                &b"application/json; charset=utf-8"[..],
+                            )
+                            .unwrap(),
+                        );
+                    let _ = req.respond(response);
+                    continue;
+                }
+
+                if *req.method() != tiny_http::Method::Post {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("method not allowed").with_status_code(405),
+                    );
+                    continue;
+                }
+
+                let mut body = String::new();
+                let _ = req
+                    .as_reader()
+                    .take(32 * 1024 + 1)
+                    .read_to_string(&mut body);
+
+                if body.len() > 32 * 1024 {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("payload too large").with_status_code(413),
+                    );
+                    continue;
+                }
+
+                let event = match serde_json::from_str::<crate::nx_agent::TelemetryEvent>(&body) {
+                    Ok(event) => event,
+                    Err(_) => {
+                        let _ = req.respond(
+                            tiny_http::Response::from_string("invalid json").with_status_code(400),
+                        );
+                        continue;
+                    }
+                };
+
+                if let Err(reason) = event.validate() {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string(reason).with_status_code(400),
+                    );
+                    continue;
+                }
+
+                let snapshot = {
+                    let state = app.state::<AppState>();
+                    let mut collector = state.nx_agent.lock().unwrap();
+                    collector.ingest(event);
+                    collector.snapshot()
+                };
+
+                let _ = app.emit("nx-agent-telemetry", &snapshot);
+                let response = tiny_http::Response::from_string(
+                    r#"{"ok":true,"protocol":"nx.telemetry.v1"}"#,
+                )
+                .with_status_code(202)
+                .with_header(
+                    tiny_http::Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                let _ = req.respond(response);
+                continue;
+            }
+
             if url.starts_with("/event") {
                 // runoptic-hook only ever POSTs. A GET is also what a web page can send with no
                 // Origin header at all (an image tag), so nothing but POST is taken (#165).
