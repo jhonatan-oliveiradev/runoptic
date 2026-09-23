@@ -53,6 +53,7 @@
   .badge svg{width:12px;height:12px;fill:#fff}
   .b-blue{background:linear-gradient(#4fa6ff,#0a6cff)}
   .b-indigo{background:linear-gradient(#8784ff,#5856d6)}
+  .b-green{background:linear-gradient(#B8FA58,#77B91C)}
   .b-gray{background:linear-gradient(#a6a6ab,#727277)}
   .b-red{background:linear-gradient(#ff6d62,#dd3328)}
 
@@ -78,6 +79,25 @@
   .item.cap{min-height:0;padding:8px 12px;font-size:12px;color:var(--text2);display:block}
   .item .hint{font-size:12px;color:var(--text2)}
   .value{color:var(--text2)}
+
+  /* ---- NX Agent activity ---- */
+  .agent-overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:6px 0 14px}
+  .agent-stat{background:var(--group);border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-width:0}
+  .agent-stat strong{display:block;font-size:18px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .agent-stat span{display:block;margin-top:4px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
+  .agent-live{display:flex;align-items:center;gap:8px}
+  .agent-dot{width:8px;height:8px;border-radius:50%;background:#59636E;box-shadow:0 0 0 3px rgba(89,99,110,.10)}
+  .agent-dot.active{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
+  .agent-timeline{padding:4px 0}
+  .agent-event{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px}
+  .agent-event + .agent-event{border-top:1px solid var(--sep)}
+  .agent-kind{font-size:11px;font-weight:650;color:var(--text)}
+  .agent-detail{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .agent-time{font-size:10px;color:var(--text3);font-variant-numeric:tabular-nums}
+  .agent-empty{padding:16px 12px;color:var(--text2);font-size:12px}
+  .agent-badge{font-size:9px;text-transform:uppercase;letter-spacing:.07em;padding:2px 6px;border-radius:999px;border:1px solid var(--line);color:var(--text2)}
+  .agent-badge.denied,.agent-badge.failed{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
+  .agent-badge.allowed{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
 
   /* ---- account rows ---- */
   .acct{padding:9px 12px}
@@ -255,6 +275,7 @@
     </div>
     <button class="row" id="tab-accounts" role="tab" aria-controls="pane-accounts" aria-selected="false" tabindex="-1"><span class="badge b-blue"><svg viewBox="0 0 12 12"><circle cx="6" cy="4" r="2.4"/><path d="M1.5 11.2c.4-2.5 2.3-3.9 4.5-3.9s4.1 1.4 4.5 3.9z"/></svg></span><span>Accounts</span></button>
     <button class="row" id="tab-appearance" role="tab" aria-controls="pane-appearance" aria-selected="false" tabindex="-1"><span class="badge b-indigo"><svg viewBox="0 0 12 12"><path d="M10 .9a.8.8 0 0 1 1.1 1.1L6.4 6.7 5.3 5.6zM4.6 6.3l1.1 1.1c.2 1.9-1.9 3.6-4.7 3.1.9-.4 1.2-1 1.3-1.8.1-1.3 1.1-2.3 2.3-2.4z"/></svg></span><span>Appearance</span></button>
+    <button class="row" id="tab-agent" role="tab" aria-controls="pane-agent" aria-selected="false" tabindex="-1"><span class="badge b-green"><svg viewBox="0 0 12 12"><path d="M2 3.2h8v5.6H2z"/><circle cx="4.2" cy="5.7" r=".8" fill="#0B0D10"/><circle cx="7.8" cy="5.7" r=".8" fill="#0B0D10"/><path d="M4 8h4v1H4z" fill="#0B0D10"/></svg></span><span>Agent</span></button>
     <button class="row" id="tab-general" role="tab" aria-controls="pane-general" aria-selected="false" tabindex="-1"><span class="badge b-gray"><svg viewBox="0 0 12 12"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg></span><span>General</span></button>
     <div class="grow" data-tauri-drag-region></div>
     <button class="row" id="quit"><span class="badge b-red"><svg viewBox="0 0 12 12"><path d="M6 1.2v4.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M3.4 3.1a3.9 3.9 0 1 0 5.2 0" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span><span>Quit RunOptic</span></button>
@@ -331,6 +352,29 @@
             </select>
           </div>
           <div class="item cap">Sets the language used by RunOptic. “Follow system” uses the language Windows itself is set to.</div>
+        </div>
+      </section>
+
+      <section class="pane" id="pane-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+        <div class="sec">NX Agent</div>
+        <div class="agent-overview">
+          <div class="agent-stat"><strong id="agent-queries">0</strong><span>Queries</span></div>
+          <div class="agent-stat"><strong id="agent-model-calls">0</strong><span>Model calls</span></div>
+          <div class="agent-stat"><strong id="agent-tools">0</strong><span>Tools</span></div>
+          <div class="agent-stat"><strong id="agent-tokens">0</strong><span>Tokens</span></div>
+        </div>
+        <div class="group">
+          <div class="item">
+            <span class="agent-live"><span class="agent-dot" id="agent-dot"></span><span>Runtime</span></span>
+            <span class="value" id="agent-runtime">Waiting for telemetry</span>
+          </div>
+          <div class="item"><span>Provider / model</span><span class="value" id="agent-model">—</span></div>
+          <div class="item"><span>Last query latency</span><span class="value" id="agent-latency">—</span></div>
+          <div class="item"><span>Permission denials</span><span class="value" id="agent-denied">0</span></div>
+        </div>
+        <div class="sec">Recent activity</div>
+        <div class="group agent-timeline" id="agent-timeline">
+          <div class="agent-empty">No NX Agent activity captured yet.</div>
         </div>
       </section>
 
@@ -939,8 +983,8 @@ function loadLook(){
 dark.addEventListener('change', applyAccent);
 
 /* ---- the sidebar -------------------------------------------------------- */
-const TABS = ['accounts', 'appearance', 'general'];
-const TITLES = { accounts:'Accounts', appearance:'Appearance', general:'General' };
+const TABS = ['accounts', 'appearance', 'agent', 'general'];
+const TITLES = { accounts:'Accounts', appearance:'Appearance', agent:'Agent Activity', general:'General' };
 const TAB_KEY = 'runoptic.settings.pane';
 let curTab = TABS[0];
 function showTab(id, moveFocus){
@@ -1010,6 +1054,91 @@ function refreshOptions(){
     if(Array.isArray(opts) && opts.length){ options = opts.filter(o => o && typeof o.id === 'string'); renderAccounts(); }
   });
 }
+
+/* ---- NX Agent ---------------------------------------------------------- */
+let nxAgentTelemetry = null;
+
+function fmtCompact(n){
+  const v = Number(n || 0);
+  if(v >= 1000000) return (v / 1000000).toFixed(v >= 10000000 ? 0 : 1) + 'M';
+  if(v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'K';
+  return String(v);
+}
+function fmtLatency(ms){
+  const v = Number(ms);
+  if(!Number.isFinite(v)) return '—';
+  if(v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 1 : 1) + ' s';
+  return Math.round(v) + ' ms';
+}
+function eventDetail(ev){
+  if(!ev) return '';
+  if(ev.type === 'model.completed') return [ev.provider, ev.model].filter(Boolean).join(' · ') || 'Model completed';
+  if(ev.type === 'tool.completed') return [ev.skillId, ev.toolName].filter(Boolean).join('.') || 'Tool completed';
+  if(ev.type === 'query.completed') return 'Query completed';
+  if(ev.type === 'query.started') return 'Query started';
+  return String(ev.type || 'Event');
+}
+function eventTime(ev){
+  const d = new Date(ev && ev.timestamp || '');
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+function renderNxAgent(){
+  const snap = nxAgentTelemetry;
+  const totals = snap && snap.totals || {};
+  const recent = snap && Array.isArray(snap.recent) ? snap.recent : [];
+  const last = recent.length ? recent[recent.length - 1] : null;
+  const active = !!(last && last.type !== 'query.completed');
+
+  document.getElementById('agent-queries').textContent = fmtCompact(totals.queries_completed || totals.queries_started);
+  document.getElementById('agent-model-calls').textContent = fmtCompact(totals.model_calls);
+  document.getElementById('agent-tools').textContent = fmtCompact(totals.tool_calls);
+  document.getElementById('agent-tokens').textContent = fmtCompact((totals.input_tokens || 0) + (totals.output_tokens || 0));
+  document.getElementById('agent-denied').textContent = fmtCompact(totals.tool_denied);
+  document.getElementById('agent-runtime').textContent = recent.length ? (active ? 'Active' : 'Idle') : 'Waiting for telemetry';
+  document.getElementById('agent-dot').classList.toggle('active', active);
+
+  let modelEvent = null, completedEvent = null;
+  for(let i = recent.length - 1; i >= 0; i--){
+    const ev = recent[i] || {};
+    if(!modelEvent && ev.type === 'model.completed') modelEvent = ev;
+    if(!completedEvent && ev.type === 'query.completed') completedEvent = ev;
+    if(modelEvent && completedEvent) break;
+  }
+  document.getElementById('agent-model').textContent =
+    modelEvent ? [modelEvent.provider, modelEvent.model].filter(Boolean).join(' · ') || '—' : '—';
+  document.getElementById('agent-latency').textContent =
+    completedEvent ? fmtLatency(completedEvent.latencyMs) : '—';
+
+  const timeline = document.getElementById('agent-timeline');
+  const events = recent.slice(-12).reverse();
+  if(!events.length){
+    timeline.innerHTML = '<div class="agent-empty">No NX Agent activity captured yet.</div>';
+    return;
+  }
+  timeline.innerHTML = events.map(ev => {
+    const decision = ev.decision ? '<span class="agent-badge ' + esc(ev.decision) + '">' + esc(ev.decision) + '</span>' : '';
+    const metric = ev.type === 'model.completed' && ev.latencyMs != null
+      ? '<span class="agent-badge">' + esc(fmtLatency(ev.latencyMs)) + '</span>'
+      : decision;
+    return '<div class="agent-event">'
+      + '<div class="agent-kind">' + esc(String(ev.type || '').replace('.completed','').replace('.started','')) + '</div>'
+      + '<div class="agent-detail">' + esc(eventDetail(ev)) + '</div>'
+      + '<div class="agent-time">' + metric + (metric ? ' · ' : '') + esc(eventTime(ev)) + '</div>'
+      + '</div>';
+  }).join('');
+}
+function refreshNxAgent(){
+  return call('get_nx_agent_telemetry', undefined, null).then(v => {
+    if(v && typeof v === 'object') nxAgentTelemetry = v;
+    renderNxAgent();
+  });
+}
+try {
+  window.__TAURI__.event.listen('nx-agent-telemetry', e => {
+    if(e.payload) nxAgentTelemetry = e.payload;
+    renderNxAgent();
+  });
+} catch(e) { /* direct command refresh still works */ }
 
 /* ---- a boolean that lives in Rust ---------------------------------------
    Open at login and the Claude Code hooks: a command that reads the real state and one that changes
@@ -1453,6 +1582,7 @@ function boot(){
   autostart.refresh();
   moveHandle.refresh();
   hooks.refresh();
+  refreshNxAgent();
 }
 /* Readings and the accent can change while the window is behind something else; coming back to it is
    when the old values are wrong, so that is when they are read again. */
@@ -1462,6 +1592,7 @@ window.addEventListener('focus', () => {
   // A screen can be plugged in, and the pill dragged to another edge, while this window sits behind
   call('get_notch_edge', undefined, null).then(v => { if(typeof v === 'string') notchEdge = v; renderEdge(); });
   refreshScreens();
+  refreshNxAgent();
 });
 boot();
 </script>
