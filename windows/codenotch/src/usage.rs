@@ -480,9 +480,22 @@ fn persist_claude_account_usage(items: &[ClaudeAccountUsage]) {
     }
 }
 
+fn claude_usage_rank(account: &ClaudeAccountUsage) -> (u8, u8, u64) {
+    let source = match account.source_kind.as_str() {
+        "live" => 3,
+        "cached" => 2,
+        _ => 1,
+    };
+    let has_windows = if account.snapshot.windows.is_empty() { 0 } else { 1 };
+    (source, has_windows, account.snapshot.fetched_at)
+}
+
+fn preferred_claude_account(accounts: &[ClaudeAccountUsage]) -> Option<&ClaudeAccountUsage> {
+    accounts.iter().max_by_key(|account| claude_usage_rank(account))
+}
+
 pub fn bootstrap_claude_legacy_snapshot(accounts: &[ClaudeAccountUsage]) -> UsageSnapshot {
-    let mut snapshot = accounts
-        .first()
+    let mut snapshot = preferred_claude_account(accounts)
         .map(|account| account.snapshot.clone())
         .unwrap_or_default();
 
@@ -724,8 +737,8 @@ fn poll_claude_account(
 }
 
 fn best_claude_legacy_snapshot(accounts: &[ClaudeAccountUsage]) -> UsageSnapshot {
-    if let Some(first) = accounts.first() {
-        let mut snapshot = first.snapshot.clone();
+    if let Some(preferred) = preferred_claude_account(accounts) {
+        let mut snapshot = preferred.snapshot.clone();
         if accounts.len() > 1 {
             let suffix = format!("{} Claude accounts detected", accounts.len());
             snapshot.note = if snapshot.note.is_empty() {
@@ -1229,6 +1242,44 @@ mod tests {
         assert!(obs.credential_path.is_some());
 
         std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn legacy_claude_hud_prefers_live_account_over_missing_account() {
+        let missing = ClaudeAccountUsage {
+            key: "windows-native/claude".into(),
+            profile_keys: vec!["windows-native/claude".into()],
+            selected_profile_key: "windows-native/claude".into(),
+            source_kind: "none".into(),
+            source_profile_key: Some("windows-native/claude".into()),
+            snapshot: UsageSnapshot {
+                status: "needsAuth".into(),
+                ..Default::default()
+            },
+        };
+        let live = ClaudeAccountUsage {
+            key: "wsl:ubuntu/claude".into(),
+            profile_keys: vec!["wsl:ubuntu/claude".into()],
+            selected_profile_key: "wsl:ubuntu/claude".into(),
+            source_kind: "live".into(),
+            source_profile_key: Some("wsl:ubuntu/claude".into()),
+            snapshot: UsageSnapshot {
+                status: "ok".into(),
+                windows: vec![LimitWindow {
+                    id: "session".into(),
+                    label: "Current session".into(),
+                    used: 0.5,
+                    ..Default::default()
+                }],
+                fetched_at: 42,
+                ..Default::default()
+            },
+        };
+
+        let snapshot = best_claude_legacy_snapshot(&[missing, live]);
+        assert_eq!(snapshot.status, "ok");
+        assert_eq!(snapshot.windows.len(), 1);
+        assert!(snapshot.note.contains("2 Claude accounts detected"));
     }
 
     #[test]
