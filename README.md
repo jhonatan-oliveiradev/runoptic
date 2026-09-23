@@ -31,6 +31,17 @@ The product is **Windows + WSL first**, provider-agnostic and local-first.
 - **RunOptic Doctor** — diagnostics for collectors and environments.
 - **RunOptic CLI** — scriptable status and troubleshooting.
 
+## NX Agent telemetry
+
+RunOptic can ingest the privacy-preserving `nx.telemetry.v1` stream emitted by NX Agent on its local server (default port `48666`):
+
+```text
+POST /v1/telemetry/nx-agent
+GET  /v1/telemetry/nx-agent
+```
+
+The collector records model/provider identity, latency, token counters, tool outcomes and permission denials. NX Agent does not send prompt text, response text, tool arguments or home-state payloads through this protocol.
+
 ## Current Gate 2 baseline
 
 The current implementation is derived from the Windows port of Codenotch
