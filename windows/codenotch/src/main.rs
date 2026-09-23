@@ -71,6 +71,8 @@ pub struct AppState {
     pub claude_accounts: Mutex<Vec<usage::ClaudeAccountGroup>>,
     /// Claude Code CLI availability per environment/profile.
     pub claude_clis: Mutex<Vec<usage::ClaudeCliObservation>>,
+    /// Per-quota-account Claude polling state.
+    pub claude_account_usage: Mutex<Vec<usage::ClaudeAccountUsage>>,
     /// Deduplicated Codex quota identities. Multiple environment profiles can point at one account.
     pub codex_accounts: Mutex<Vec<codex::AccountGroup>>,
     /// Per-quota-account Codex polling state. One account can be backed by several profiles.
@@ -614,6 +616,13 @@ fn get_claude_cli_observations(
     state: tauri::State<AppState>,
 ) -> Vec<usage::ClaudeCliObservation> {
     state.claude_clis.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_claude_account_usage(
+    state: tauri::State<AppState>,
+) -> Vec<usage::ClaudeAccountUsage> {
+    state.claude_account_usage.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -1610,6 +1619,8 @@ fn main() {
     let port = cfg.port;
     let persisted_codex_accounts = codex::load_account_usage();
     let codex_bootstrap = codex::bootstrap_legacy_snapshot(&persisted_codex_accounts);
+    let persisted_claude_accounts = usage::load_claude_account_usage();
+    let claude_bootstrap = usage::bootstrap_claude_legacy_snapshot(&persisted_claude_accounts);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -1621,7 +1632,7 @@ fn main() {
         .manage(AppState {
             store: Mutex::new(Default::default()),
             cfg: Mutex::new(cfg),
-            usage: Mutex::new(usage::load_persisted()),
+            usage: Mutex::new(claude_bootstrap),
             codex: Mutex::new(codex_bootstrap),
             cursor: Mutex::new(cursor::load_persisted()),
             grok: Mutex::new(grok::load_persisted()),
@@ -1634,6 +1645,7 @@ fn main() {
             claude_profiles: Mutex::new(Vec::new()),
             claude_accounts: Mutex::new(Vec::new()),
             claude_clis: Mutex::new(Vec::new()),
+            claude_account_usage: Mutex::new(persisted_claude_accounts),
             codex_accounts: Mutex::new(Vec::new()),
             codex_account_usage: Mutex::new(persisted_codex_accounts),
         })
@@ -1645,6 +1657,7 @@ fn main() {
             get_claude_profile_observations,
             get_claude_account_groups,
             get_claude_cli_observations,
+            get_claude_account_usage,
             get_codex_account_groups,
             get_codex_account_usage,
             get_codex,
@@ -1749,14 +1762,14 @@ fn main() {
                 let _ = inventory_app.emit("claude_clis", &claude_clis);
                 let _ = inventory_app.emit("codex_accounts", &codex_accounts);
 
-                // Start the account-aware poller only after environment/profile discovery completes.
-                // It owns live Codex polling from this point on and keeps the legacy single-ring
-                // event updated for the current UI.
+                // Start account-aware pollers only after environment/profile discovery completes.
+                // They keep the legacy single-ring events updated for the current UI while the
+                // complete per-account state remains available to future presentation work.
                 codex::start_accounts(inventory_app.clone(), snapshot.profiles.clone());
+                usage::start_accounts(inventory_app.clone(), snapshot.profiles.clone());
             });
 
             watcher::start(handle.clone());
-            usage::start(handle.clone());
             cursor::start(handle.clone());
             grok::start(handle.clone());
             antigravity::start(handle.clone());
