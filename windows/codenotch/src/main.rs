@@ -10,6 +10,7 @@ mod focus;
 mod hooks_install;
 mod i18n;
 mod notchmenu;
+mod nx_agent;
 mod server;
 mod state;
 mod tray;
@@ -55,6 +56,8 @@ pub struct AppState {
     pub glyphs: Mutex<std::collections::HashMap<String, glyphs::Glyph>>,
     /// Working state of the non-Claude providers (Cursor reports it; Codex and Antigravity are inferred from recent writes)
     pub activity: Mutex<Vec<activity::Activity>>,
+    /// Privacy-preserving telemetry emitted by NX Agent over the local collector endpoint.
+    pub nx_agent: Mutex<nx_agent::Collector>,
     /// Environment/profile inventory. Populated off the UI thread after startup so WSL discovery
     /// cannot delay the notch becoming visible.
     pub inventory: Mutex<Option<inventory::RuntimeInventory>>,
@@ -664,6 +667,11 @@ fn get_antigravity(state: tauri::State<AppState>) -> usage::UsageSnapshot {
 #[tauri::command]
 fn get_activity(state: tauri::State<AppState>) -> Vec<activity::Activity> {
     state.activity.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_nx_agent_telemetry(state: tauri::State<AppState>) -> nx_agent::Snapshot {
+    state.nx_agent.lock().unwrap().snapshot()
 }
 
 #[tauri::command]
@@ -1620,6 +1628,7 @@ fn main() {
             antigravity: Mutex::new(antigravity::load_persisted()),
             glyphs: Mutex::new(Default::default()),
             activity: Mutex::new(Vec::new()),
+            nx_agent: Mutex::new(Default::default()),
             inventory: Mutex::new(None),
             codex_profiles: Mutex::new(Vec::new()),
             claude_profiles: Mutex::new(Vec::new()),
@@ -1644,6 +1653,7 @@ fn main() {
             get_antigravity,
             get_glyphs,
             get_activity,
+            get_nx_agent_telemetry,
             open_data_dir,
             drag_begin,
             refresh_ring,
