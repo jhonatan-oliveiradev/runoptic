@@ -443,6 +443,60 @@ pub fn observe_claude_clis(
     profiles.iter().filter_map(observe_claude_cli).collect()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ClaudeAccountUsage {
+    pub key: String,
+    pub profile_keys: Vec<String>,
+    pub selected_profile_key: String,
+    /// live | cached | none
+    pub source_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_profile_key: Option<String>,
+    pub snapshot: UsageSnapshot,
+}
+
+fn account_store_path() -> std::path::PathBuf {
+    crate::config::config_path().with_file_name("claude-accounts.json")
+}
+
+pub fn load_claude_account_usage() -> Vec<ClaudeAccountUsage> {
+    std::fs::read_to_string(account_store_path())
+        .ok()
+        .and_then(|text| serde_json::from_str::<Vec<ClaudeAccountUsage>>(&text).ok())
+        .map(|mut items| {
+            for item in &mut items {
+                if !item.snapshot.windows.is_empty() {
+                    item.snapshot.status = "stale".into();
+                }
+            }
+            items
+        })
+        .unwrap_or_default()
+}
+
+fn persist_claude_account_usage(items: &[ClaudeAccountUsage]) {
+    if let Ok(text) = serde_json::to_string_pretty(items) {
+        let _ = std::fs::write(account_store_path(), text);
+    }
+}
+
+pub fn bootstrap_claude_legacy_snapshot(accounts: &[ClaudeAccountUsage]) -> UsageSnapshot {
+    let mut snapshot = accounts
+        .first()
+        .map(|account| account.snapshot.clone())
+        .unwrap_or_default();
+
+    if !snapshot.windows.is_empty() {
+        snapshot.status = "stale".into();
+        snapshot.note = if snapshot.note.is_empty() {
+            "Cached Claude account snapshot".into()
+        } else {
+            format!("Cached · {}", snapshot.note)
+        };
+    }
+    snapshot
+}
+
 pub fn group_claude_accounts(
     observations: &[ClaudeProfileObservation],
 ) -> Vec<ClaudeAccountGroup> {
@@ -484,6 +538,274 @@ pub fn group_claude_accounts(
 
     out.sort_by(|a, b| a.key.cmp(&b.key));
     out
+}
+
+fn stale_or_empty(previous: Option<&ClaudeAccountUsage>, status: &str, note: String) -> UsageSnapshot {
+    let mut snapshot = previous
+        .map(|account| account.snapshot.clone())
+        .unwrap_or_default();
+
+    snapshot.status = if snapshot.windows.is_empty() {
+        status.to_string()
+    } else {
+        "stale".into()
+    };
+    snapshot.note = note;
+    snapshot
+}
+
+fn poll_claude_account(
+    group: &ClaudeAccountGroup,
+    profiles: &[crate::profile::ToolProfile],
+    previous: Option<&ClaudeAccountUsage>,
+) -> ClaudeAccountUsage {
+    let now = now_ms();
+    let selected = profiles
+        .iter()
+        .find(|profile| profile.key == group.selected_profile_key);
+
+    let (source_kind, source_profile_key, snapshot) = match selected {
+        None => (
+            "none".into(),
+            None,
+            stale_or_empty(
+                previous,
+                "needsAuth",
+                "Selected Claude profile is unavailable".into(),
+            ),
+        ),
+        Some(profile) => {
+            let held_until = previous
+                .map(|account| account.snapshot.backoff_until)
+                .unwrap_or(0);
+
+            if held_until > now {
+                let mut snapshot = stale_or_empty(
+                    previous,
+                    "backoff",
+                    format!(
+                        "Rate limited — retrying in {}s",
+                        held_until.saturating_sub(now) / 1000
+                    ),
+                );
+                snapshot.backoff_until = held_until;
+                (
+                    if snapshot.windows.is_empty() { "none" } else { "cached" }.into(),
+                    Some(profile.key.clone()),
+                    snapshot,
+                )
+            } else {
+                match read_credentials_in(&profile.config_dir) {
+                    None => (
+                        if previous.is_some_and(|p| !p.snapshot.windows.is_empty()) {
+                            "cached"
+                        } else {
+                            "none"
+                        }
+                        .into(),
+                        Some(profile.key.clone()),
+                        stale_or_empty(
+                            previous,
+                            "needsAuth",
+                            format!("No Claude Code credential found for {}", profile.environment_id),
+                        ),
+                    ),
+                    Some(credential) if credential.expired(now) => (
+                        if previous.is_some_and(|p| !p.snapshot.windows.is_empty()) {
+                            "cached"
+                        } else {
+                            "none"
+                        }
+                        .into(),
+                        Some(profile.key.clone()),
+                        stale_or_empty(
+                            previous,
+                            "needsAuth",
+                            format!(
+                                "Claude credential expired in {} — open Claude Code there to refresh it",
+                                profile.environment_id
+                            ),
+                        ),
+                    ),
+                    Some(credential) => {
+                        let token = credential.token;
+                        let result = match fetch_once(&token) {
+                            Err(FetchErr::NeedsAuth) => match read_credentials_in(&profile.config_dir) {
+                                Some(next) if next.token != token => fetch_once(&next.token),
+                                _ => Err(FetchErr::NeedsAuth),
+                            },
+                            other => other,
+                        };
+
+                        match result {
+                            Ok(windows) => (
+                                "live".into(),
+                                Some(profile.key.clone()),
+                                UsageSnapshot {
+                                    status: "ok".into(),
+                                    windows,
+                                    fetched_at: now_ms(),
+                                    note: format!("Live · {}", profile.environment_id),
+                                    backoff_until: 0,
+                                },
+                            ),
+                            Err(FetchErr::NeedsAuth) => (
+                                if previous.is_some_and(|p| !p.snapshot.windows.is_empty()) {
+                                    "cached"
+                                } else {
+                                    "none"
+                                }
+                                .into(),
+                                Some(profile.key.clone()),
+                                stale_or_empty(
+                                    previous,
+                                    "needsAuth",
+                                    format!(
+                                        "Claude rejected the credential from {}",
+                                        profile.environment_id
+                                    ),
+                                ),
+                            ),
+                            Err(FetchErr::RateLimited(retry_after)) => {
+                                let previous_wait = previous
+                                    .map(|account| {
+                                        account
+                                            .snapshot
+                                            .backoff_until
+                                            .saturating_sub(now)
+                                            / 1000
+                                    })
+                                    .unwrap_or(0);
+                                let wait = backoff_secs(
+                                    if previous_wait > 0 { 1 } else { 0 },
+                                    retry_after,
+                                );
+                                let mut snapshot = stale_or_empty(
+                                    previous,
+                                    "backoff",
+                                    format!("Rate limited — retrying in {wait}s"),
+                                );
+                                snapshot.backoff_until = now_ms() + wait * 1000;
+                                (
+                                    if snapshot.windows.is_empty() { "none" } else { "cached" }.into(),
+                                    Some(profile.key.clone()),
+                                    snapshot,
+                                )
+                            }
+                            Err(FetchErr::Other(error)) => (
+                                if previous.is_some_and(|p| !p.snapshot.windows.is_empty()) {
+                                    "cached"
+                                } else {
+                                    "none"
+                                }
+                                .into(),
+                                Some(profile.key.clone()),
+                                stale_or_empty(
+                                    previous,
+                                    "error",
+                                    format!("Claude live read failed ({error})"),
+                                ),
+                            ),
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    ClaudeAccountUsage {
+        key: group.key.clone(),
+        profile_keys: group.profile_keys.clone(),
+        selected_profile_key: group.selected_profile_key.clone(),
+        source_kind,
+        source_profile_key,
+        snapshot,
+    }
+}
+
+fn best_claude_legacy_snapshot(accounts: &[ClaudeAccountUsage]) -> UsageSnapshot {
+    if let Some(first) = accounts.first() {
+        let mut snapshot = first.snapshot.clone();
+        if accounts.len() > 1 {
+            let suffix = format!("{} Claude accounts detected", accounts.len());
+            snapshot.note = if snapshot.note.is_empty() {
+                suffix
+            } else {
+                format!("{} · {suffix}", snapshot.note)
+            };
+        }
+        return snapshot;
+    }
+    UsageSnapshot::default()
+}
+
+fn broadcast_claude_account_usage(
+    app: &AppHandle,
+    observations: Vec<ClaudeProfileObservation>,
+    groups: Vec<ClaudeAccountGroup>,
+    accounts: Vec<ClaudeAccountUsage>,
+) {
+    let legacy = best_claude_legacy_snapshot(&accounts);
+
+    {
+        let state = app.state::<AppState>();
+        *state.claude_profiles.lock().unwrap() = observations.clone();
+        *state.claude_accounts.lock().unwrap() = groups.clone();
+        *state.claude_account_usage.lock().unwrap() = accounts.clone();
+        *state.usage.lock().unwrap() = legacy.clone();
+    }
+
+    persist_claude_account_usage(&accounts);
+    persist(&legacy);
+
+    let _ = app.emit("claude_profiles", &observations);
+    let _ = app.emit("claude_accounts", &groups);
+    let _ = app.emit("claude_account_usage", &accounts);
+    let _ = app.emit("usage", &legacy);
+}
+
+/// Account-aware Claude polling.
+///
+/// This slice is deliberately read-only with respect to credentials. Missing/expired credentials
+/// never launch Claude Code and never hit the usage endpoint. Environment-aware token renewal is
+/// implemented separately so Windows and WSL cannot refresh each other's credential stores.
+pub fn start_accounts(app: AppHandle, profiles: Vec<crate::profile::ToolProfile>) {
+    std::thread::spawn(move || {
+        let mut previous = load_claude_account_usage();
+
+        loop {
+            let observations = observe_claude_profiles(&profiles);
+            let groups = group_claude_accounts(&observations);
+            let accounts = groups
+                .iter()
+                .map(|group| {
+                    let prior = previous.iter().find(|account| account.key == group.key);
+                    poll_claude_account(group, &profiles, prior)
+                })
+                .collect::<Vec<_>>();
+
+            broadcast_claude_account_usage(
+                &app,
+                observations,
+                groups,
+                accounts.clone(),
+            );
+            previous = accounts;
+
+            let active = {
+                let state = app.state::<AppState>();
+                let store = state.store.lock().unwrap();
+                let snapshot = store.snapshot("en", "en", false, false);
+                !snapshot.sessions.is_empty()
+            };
+
+            sleep_interruptible(if active {
+                POLL_ACTIVE_SECS
+            } else {
+                POLL_IDLE_SECS
+            });
+        }
+    });
 }
 
 /// For doctor: credential probe report (prints no secret values)
@@ -905,6 +1227,71 @@ mod tests {
         assert_eq!(obs.profile_key, "wsl:ubuntu/claude");
         assert_eq!(obs.auth_status, "usable");
         assert!(obs.credential_path.is_some());
+
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn claude_account_without_credential_never_attempts_live_read() {
+        let root = std::env::temp_dir().join(format!("runoptic-claude-account-missing-{}", now_ms()));
+        std::fs::create_dir_all(&root).unwrap();
+
+        let profile = claude_profile("wsl:ubuntu/claude", root.clone());
+        let observations = vec![observe_claude_profile(&profile).unwrap()];
+        let groups = group_claude_accounts(&observations);
+        let usage = poll_claude_account(&groups[0], &[profile], None);
+
+        assert_eq!(usage.source_kind, "none");
+        assert_eq!(usage.snapshot.status, "needsAuth");
+        assert!(usage.snapshot.windows.is_empty());
+
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn expired_claude_credential_preserves_cached_snapshot_without_network() {
+        let root = std::env::temp_dir().join(format!("runoptic-claude-account-expired-{}", now_ms()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join(".credentials.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "claudeAiOauth": {
+                    "accessToken": "expired-test-token",
+                    "expiresAt": now_ms().saturating_sub(1)
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let profile = claude_profile("windows-native/claude", root.clone());
+        let observations = vec![observe_claude_profile(&profile).unwrap()];
+        let groups = group_claude_accounts(&observations);
+        let previous = ClaudeAccountUsage {
+            key: groups[0].key.clone(),
+            profile_keys: groups[0].profile_keys.clone(),
+            selected_profile_key: groups[0].selected_profile_key.clone(),
+            source_kind: "live".into(),
+            source_profile_key: Some("windows-native/claude".into()),
+            snapshot: UsageSnapshot {
+                status: "ok".into(),
+                windows: vec![LimitWindow {
+                    id: "session".into(),
+                    label: "Current session".into(),
+                    used: 0.25,
+                    ..Default::default()
+                }],
+                fetched_at: now_ms().saturating_sub(10_000),
+                ..Default::default()
+            },
+        };
+
+        let usage = poll_claude_account(&groups[0], &[profile], Some(&previous));
+
+        assert_eq!(usage.source_kind, "cached");
+        assert_eq!(usage.snapshot.status, "stale");
+        assert_eq!(usage.snapshot.windows.len(), 1);
+        assert!(usage.snapshot.note.contains("expired"));
 
         std::fs::remove_dir_all(root).ok();
     }
