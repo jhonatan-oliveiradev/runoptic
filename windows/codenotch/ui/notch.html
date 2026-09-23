@@ -106,6 +106,17 @@
   .g-box{border:1px solid #242A32;border-radius:10px;padding:0 10px 8px;margin-top:6px}
   .c-note{font-size:12px;color:#A8B0BA;line-height:1.5;margin-top:6px}
   .c-sessions{margin-top:12px;border-top:1px solid #202832;padding-top:8px}
+  .nx-agent-panel{margin-top:12px;padding-top:10px;border-top:1px solid #202832}
+  .nx-agent-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+  .nx-agent-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#F4F7F8}
+  .nx-agent-dot{width:7px;height:7px;border-radius:50%;background:#59636E;box-shadow:0 0 0 3px rgba(89,99,110,.10)}
+  .nx-agent-dot.active{background:var(--ro-accent,#A7F432);box-shadow:0 0 0 3px rgba(167,244,50,.10)}
+  .nx-agent-state{font-size:10px;color:#7F8995;text-transform:uppercase;letter-spacing:.08em}
+  .nx-agent-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .nx-agent-metric{background:#0E1318;border:1px solid #202832;border-radius:9px;padding:7px 8px;min-width:0}
+  .nx-agent-value{font-size:12px;font-weight:700;color:#F4F7F8;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nx-agent-label{font-size:9px;color:#7F8995;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+  .nx-agent-meta{font-size:10px;color:#A8B0BA;line-height:1.45;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:#A8B0BA;padding:2px 0}
   .s-dot{width:6px;height:6px;border-radius:3px;flex:0 0 auto}
   .s-more{font-size:11px;color:#7F8995;padding:2px 0}
@@ -936,6 +947,46 @@ const STATE_DOT={running:INK,attention:WATCH,done:AMPLE,idle:TRACK};
 const SESSION_ROWS=5;
 function moreRow(n){ return n>0?`<div class="s-more">${ui().andMore(n)}</div>`:''; }
 
+let nxAgentTelemetry=null;
+
+function nxFmt(n){
+  const value=Number(n||0);
+  if(value>=1000000) return (value/1000000).toFixed(value>=10000000?0:1)+'M';
+  if(value>=1000) return (value/1000).toFixed(value>=10000?0:1)+'K';
+  return String(value);
+}
+
+function nxAgentPanel(){
+  const snap=nxAgentTelemetry;
+  if(!snap||!snap.totals) return '';
+  const totals=snap.totals||{};
+  const recent=Array.isArray(snap.recent)?snap.recent:[];
+  const last=recent.length?recent[recent.length-1]:null;
+  const active=!!(last&&last.type!=='query.completed');
+  let modelEvent=null, completedEvent=null;
+  for(let i=recent.length-1;i>=0;i--){
+    const ev=recent[i]||{};
+    if(!modelEvent&&ev.type==='model.completed') modelEvent=ev;
+    if(!completedEvent&&ev.type==='query.completed') completedEvent=ev;
+    if(modelEvent&&completedEvent) break;
+  }
+  const provider=modelEvent&&modelEvent.provider?String(modelEvent.provider):'—';
+  const model=modelEvent&&modelEvent.model?String(modelEvent.model):'—';
+  const latency=completedEvent&&Number.isFinite(Number(completedEvent.latencyMs))
+    ? Math.round(Number(completedEvent.latencyMs))+' ms'
+    : '—';
+  const state=active?'active':'idle';
+  return '<div class="nx-agent-panel">'
+    +'<div class="nx-agent-head"><div class="nx-agent-title"><span class="nx-agent-dot '+(active?'active':'')+'"></span>NX Agent</div><div class="nx-agent-state">'+state+'</div></div>'
+    +'<div class="nx-agent-grid">'
+      +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(totals.input_tokens)+'</div><div class="nx-agent-label">input</div></div>'
+      +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(totals.output_tokens)+'</div><div class="nx-agent-label">output</div></div>'
+      +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(totals.tool_calls)+'</div><div class="nx-agent-label">tools</div></div>'
+    +'</div>'
+    +'<div class="nx-agent-meta">'+esc(provider)+' · '+esc(model)+' · '+esc(latency)+'</div>'
+    +'</div>';
+}
+
 let hoverId='claude';
 function renderCard(){
   const c=document.getElementById('card');
@@ -993,6 +1044,7 @@ function renderCard(){
       html+=moreRow(acts.length-SESSION_ROWS)+`</div>`;
     }
   }
+  html+=nxAgentPanel();
   c.innerHTML=html;
   placeCard();
 }
@@ -1290,7 +1342,9 @@ listen('theme',e=>applyTheme(e.payload)).catch(()=>{});
 listen('antigravity_prefs',e=>{if(e.payload){agPrefs=e.payload;renderRing();}}).catch(()=>{});
 listen('glyphs',e=>{glyphs=e.payload||glyphs;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
 listen('activity',e=>{activity=e.payload||activity;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
+listen('nx-agent-telemetry',e=>{nxAgentTelemetry=e.payload||nxAgentTelemetry;if(card.classList.contains('show'))renderCard();}).catch(()=>{});
 invoke('get_activity').then(a=>{activity=a||activity;renderRing();}).catch(()=>{});
+invoke('get_nx_agent_telemetry').then(v=>{nxAgentTelemetry=v||nxAgentTelemetry;if(card.classList.contains('show'))renderCard();}).catch(()=>{});
 invoke('get_glyphs').then(g=>{glyphs=g||glyphs;renderRing();}).catch(()=>{});
 // The edge: pushed on every placement (a drag that snapped elsewhere, or Settings), and asked for once
 // at startup in case the placement happened before this page was listening.
