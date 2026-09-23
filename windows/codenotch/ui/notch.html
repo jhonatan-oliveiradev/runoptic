@@ -973,7 +973,9 @@ function nxAgentPanel(){
   const provider=modelEvent&&modelEvent.provider?String(modelEvent.provider):'—';
   const model=modelEvent&&modelEvent.model?String(modelEvent.model):'—';
   const latency=completedEvent&&Number.isFinite(Number(completedEvent.latencyMs))
-    ? Math.round(Number(completedEvent.latencyMs))+' ms'
+    ? (Number(completedEvent.latencyMs)>=1000
+        ? (Number(completedEvent.latencyMs)/1000).toFixed(1)+' s'
+        : Math.round(Number(completedEvent.latencyMs))+' ms')
     : '—';
   const state=active?'active':'idle';
   return '<div class="nx-agent-panel">'
