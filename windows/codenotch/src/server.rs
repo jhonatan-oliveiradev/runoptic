@@ -92,6 +92,7 @@ pub fn start(app: AppHandle, port: u16) {
                 };
 
                 let _ = app.emit("nx-agent-telemetry", &snapshot);
+                crate::telemetry::refresh_from_app(&app);
                 let response = tiny_http::Response::from_string(
                     r#"{"ok":true,"protocol":"nx.telemetry.v1"}"#,
                 )
