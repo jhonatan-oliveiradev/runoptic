@@ -138,6 +138,19 @@ pub fn collect(environments: &[environment::SourceEnvironment]) -> Snapshot {
         .trim_end_matches('/')
         .to_string();
 
+    if !is_loopback_base_url(&base_url) {
+        return Snapshot {
+            status: "unsupported".into(),
+            base_url,
+            source_environment_id: "gateway:9router".into(),
+            auth_source: "none".into(),
+            fetched_at_ms: now_ms(),
+            usage: Vec::new(),
+            performance: Vec::new(),
+            note: "9router CLI-token collector is restricted to loopback URLs".into(),
+        };
+    }
+
     let candidates = auth_candidates(environments);
     let mut last_error = String::new();
 
@@ -270,6 +283,28 @@ fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str, token: Option<&str>) -> R
             Err(format!("9router transport/connection failed: {error}"))
         }
     }
+}
+
+fn is_loopback_base_url(base_url: &str) -> bool {
+    let Some((scheme, rest)) = base_url.split_once("://") else {
+        return false;
+    };
+    if scheme != "http" && scheme != "https" {
+        return false;
+    }
+
+    let authority = rest.split('/').next().unwrap_or("");
+    if authority.is_empty() || authority.contains('@') {
+        return false;
+    }
+
+    let host = if let Some(stripped) = authority.strip_prefix('[') {
+        stripped.split(']').next().unwrap_or("")
+    } else {
+        authority.split(':').next().unwrap_or("")
+    };
+
+    matches!(host.to_ascii_lowercase().as_str(), "localhost" | "127.0.0.1" | "::1")
 }
 
 fn auth_candidates(environments: &[environment::SourceEnvironment]) -> Vec<AuthCandidate> {
@@ -464,6 +499,15 @@ pub fn probe(environments: &[environment::SourceEnvironment]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cli_token_collector_only_accepts_loopback_urls() {
+        assert!(is_loopback_base_url("http://127.0.0.1:20128"));
+        assert!(is_loopback_base_url("http://localhost:20128"));
+        assert!(is_loopback_base_url("https://[::1]:20128"));
+        assert!(!is_loopback_base_url("https://9router.example.com"));
+        assert!(!is_loopback_base_url("http://user:pass@127.0.0.1:20128"));
+    }
 
     #[test]
     fn sha256_matches_known_vector() {
