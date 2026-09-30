@@ -1056,10 +1056,13 @@ function refreshOptions(){
 }
 
 /* ---- NX Agent ---------------------------------------------------------- */
-let nxAgentTelemetry = null;
+let telemetryState = null;
+let nxAgentTelemetry = null; // temporary fallback during runoptic.telemetry.v1 migration
 
 function fmtCompact(n){
-  const v = Number(n || 0);
+  if(n == null || n === '') return '—';
+  const v = Number(n);
+  if(!Number.isFinite(v)) return '—';
   if(v >= 1000000) return (v / 1000000).toFixed(v >= 10000000 ? 0 : 1) + 'M';
   if(v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'K';
   return String(v);
@@ -1067,33 +1070,117 @@ function fmtCompact(n){
 function fmtLatency(ms){
   const v = Number(ms);
   if(!Number.isFinite(v)) return '—';
-  if(v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 1 : 1) + ' s';
+  if(v >= 1000) return (v / 1000).toFixed(1) + ' s';
   return Math.round(v) + ' ms';
 }
-function eventDetail(ev){
-  if(!ev) return '';
-  if(ev.type === 'model.completed') return [ev.provider, ev.model].filter(Boolean).join(' · ') || 'Model completed';
-  if(ev.type === 'tool.completed') return [ev.skillId, ev.toolName].filter(Boolean).join('.') || 'Tool completed';
-  if(ev.type === 'query.completed') return 'Query completed';
-  if(ev.type === 'query.started') return 'Query started';
-  return String(ev.type || 'Event');
-}
-function eventTime(ev){
-  const d = new Date(ev && ev.timestamp || '');
+function eventTime(value){
+  const d = new Date(value || '');
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
 }
-function renderNxAgent(){
+function normalizedNxData(){
+  const snap = telemetryState;
+  if(!snap || snap.protocol !== 'runoptic.telemetry.v1') return null;
+
+  const usage = Array.isArray(snap.usage)
+    ? snap.usage.filter(v => v && v.provenance && v.provenance.collector === 'nx-agent')
+    : [];
+  const sessions = Array.isArray(snap.sessions)
+    ? snap.sessions.filter(v => v && v.agent === 'nx-agent')
+    : [];
+  const performance = Array.isArray(snap.performance)
+    ? snap.performance.filter(v => v && v.provenance && v.provenance.collector === 'nx-agent')
+    : [];
+  const activity = Array.isArray(snap.activity)
+    ? snap.activity.filter(v => v && v.agent === 'nx-agent')
+    : [];
+
+  if(!usage.length && !sessions.length && !performance.length && !activity.length) return null;
+
+  const usageObs = usage.length ? usage[usage.length - 1] : null;
+  const perf = performance.length ? performance[performance.length - 1] : null;
+  const session = sessions.find(v => v.state === 'waiting')
+    || sessions.find(v => v.state === 'working')
+    || sessions[sessions.length - 1]
+    || null;
+
+  const count = kind => activity.filter(v => v.kind === kind).length;
+  const denied = activity.filter(v => v.kind === 'tool_completed' && v.decision === 'denied').length;
+  const queriesCompleted = count('query_completed');
+  const queriesStarted = count('query_started');
+  const modelCalls = count('model_completed');
+  const toolCalls = count('tool_completed');
+  const active = sessions.some(v => v.state === 'working' || v.state === 'waiting');
+  const waiting = sessions.some(v => v.state === 'waiting');
+  const totalTokens = usageObs && (usageObs.input_tokens != null || usageObs.output_tokens != null)
+    ? Number(usageObs.input_tokens || 0) + Number(usageObs.output_tokens || 0)
+    : null;
+
+  return {
+    queries: queriesCompleted || queriesStarted,
+    modelCalls,
+    toolCalls,
+    totalTokens,
+    denied,
+    runtime: sessions.length ? (waiting ? 'Waiting' : active ? 'Active' : 'Idle') : 'Waiting for telemetry',
+    active,
+    provider: (usageObs && usageObs.provider) || (session && session.provider) || null,
+    model: (usageObs && usageObs.model) || (session && session.model) || null,
+    latencyMs: perf && perf.latency_ms,
+    activity
+  };
+}
+function normalizedEventDetail(ev){
+  if(!ev) return '';
+  if(ev.kind === 'model_completed') return [ev.provider, ev.model].filter(Boolean).join(' · ') || 'Model completed';
+  if(ev.kind === 'tool_completed') return [ev.skill_id, ev.tool_name].filter(Boolean).join('.') || 'Tool completed';
+  if(ev.kind === 'query_completed') return 'Query completed';
+  if(ev.kind === 'query_started') return 'Query started';
+  return String(ev.kind || 'Event');
+}
+function renderNormalizedNxAgent(data){
+  document.getElementById('agent-queries').textContent = fmtCompact(data.queries);
+  document.getElementById('agent-model-calls').textContent = fmtCompact(data.modelCalls);
+  document.getElementById('agent-tools').textContent = fmtCompact(data.toolCalls);
+  document.getElementById('agent-tokens').textContent = fmtCompact(data.totalTokens);
+  document.getElementById('agent-denied').textContent = fmtCompact(data.denied);
+  document.getElementById('agent-runtime').textContent = data.runtime;
+  document.getElementById('agent-dot').classList.toggle('active', data.active);
+  document.getElementById('agent-model').textContent =
+    [data.provider, data.model].filter(Boolean).join(' · ') || '—';
+  document.getElementById('agent-latency').textContent = fmtLatency(data.latencyMs);
+
+  const timeline = document.getElementById('agent-timeline');
+  const events = data.activity.slice(-12).reverse();
+  if(!events.length){
+    timeline.innerHTML = '<div class="agent-empty">No NX Agent activity captured yet.</div>';
+    return;
+  }
+  timeline.innerHTML = events.map(ev => {
+    const decision = ev.decision
+      ? '<span class="agent-badge ' + esc(ev.decision) + '">' + esc(ev.decision) + '</span>'
+      : '';
+    const metric = ev.kind === 'model_completed' && ev.latency_ms != null
+      ? '<span class="agent-badge">' + esc(fmtLatency(ev.latency_ms)) + '</span>'
+      : decision;
+    return '<div class="agent-event">'
+      + '<div class="agent-kind">' + esc(String(ev.kind || '').replace('_completed','').replace('_started','')) + '</div>'
+      + '<div class="agent-detail">' + esc(normalizedEventDetail(ev)) + '</div>'
+      + '<div class="agent-time">' + metric + (metric ? ' · ' : '') + esc(eventTime(ev.occurred_at)) + '</div>'
+      + '</div>';
+  }).join('');
+}
+function renderLegacyNxAgent(){
   const snap = nxAgentTelemetry;
   const totals = snap && snap.totals || {};
   const recent = snap && Array.isArray(snap.recent) ? snap.recent : [];
   const last = recent.length ? recent[recent.length - 1] : null;
   const active = !!(last && last.type !== 'query.completed');
 
-  document.getElementById('agent-queries').textContent = fmtCompact(totals.queries_completed || totals.queries_started);
-  document.getElementById('agent-model-calls').textContent = fmtCompact(totals.model_calls);
-  document.getElementById('agent-tools').textContent = fmtCompact(totals.tool_calls);
+  document.getElementById('agent-queries').textContent = fmtCompact(totals.queries_completed || totals.queries_started || 0);
+  document.getElementById('agent-model-calls').textContent = fmtCompact(totals.model_calls || 0);
+  document.getElementById('agent-tools').textContent = fmtCompact(totals.tool_calls || 0);
   document.getElementById('agent-tokens').textContent = fmtCompact((totals.input_tokens || 0) + (totals.output_tokens || 0));
-  document.getElementById('agent-denied').textContent = fmtCompact(totals.tool_denied);
+  document.getElementById('agent-denied').textContent = fmtCompact(totals.tool_denied || 0);
   document.getElementById('agent-runtime').textContent = recent.length ? (active ? 'Active' : 'Idle') : 'Waiting for telemetry';
   document.getElementById('agent-dot').classList.toggle('active', active);
 
@@ -1116,27 +1203,52 @@ function renderNxAgent(){
     return;
   }
   timeline.innerHTML = events.map(ev => {
-    const decision = ev.decision ? '<span class="agent-badge ' + esc(ev.decision) + '">' + esc(ev.decision) + '</span>' : '';
+    let detail = String(ev.type || 'Event');
+    if(ev.type === 'model.completed') detail = [ev.provider, ev.model].filter(Boolean).join(' · ') || 'Model completed';
+    else if(ev.type === 'tool.completed') detail = [ev.skillId, ev.toolName].filter(Boolean).join('.') || 'Tool completed';
+    else if(ev.type === 'query.completed') detail = 'Query completed';
+    else if(ev.type === 'query.started') detail = 'Query started';
+    const decision = ev.decision
+      ? '<span class="agent-badge ' + esc(ev.decision) + '">' + esc(ev.decision) + '</span>'
+      : '';
     const metric = ev.type === 'model.completed' && ev.latencyMs != null
       ? '<span class="agent-badge">' + esc(fmtLatency(ev.latencyMs)) + '</span>'
       : decision;
     return '<div class="agent-event">'
       + '<div class="agent-kind">' + esc(String(ev.type || '').replace('.completed','').replace('.started','')) + '</div>'
-      + '<div class="agent-detail">' + esc(eventDetail(ev)) + '</div>'
-      + '<div class="agent-time">' + metric + (metric ? ' · ' : '') + esc(eventTime(ev)) + '</div>'
+      + '<div class="agent-detail">' + esc(detail) + '</div>'
+      + '<div class="agent-time">' + metric + (metric ? ' · ' : '') + esc(eventTime(ev.timestamp)) + '</div>'
       + '</div>';
   }).join('');
 }
+function renderNxAgent(){
+  const normalized = normalizedNxData();
+  if(normalized) renderNormalizedNxAgent(normalized);
+  else renderLegacyNxAgent();
+}
 function refreshNxAgent(){
-  return call('get_nx_agent_telemetry', undefined, null).then(v => {
-    if(v && typeof v === 'object') nxAgentTelemetry = v;
-    renderNxAgent();
-  });
+  return call('get_telemetry_state', undefined, null)
+    .then(v => {
+      if(v && typeof v === 'object') telemetryState = v;
+      if(telemetryState) {
+        renderNxAgent();
+        return null;
+      }
+      return call('get_nx_agent_telemetry', undefined, null).then(legacy => {
+        if(legacy && typeof legacy === 'object') nxAgentTelemetry = legacy;
+        renderNxAgent();
+        return legacy;
+      });
+    });
 }
 try {
+  window.__TAURI__.event.listen('telemetry-state', e => {
+    if(e.payload) telemetryState = e.payload;
+    renderNxAgent();
+  });
   window.__TAURI__.event.listen('nx-agent-telemetry', e => {
     if(e.payload) nxAgentTelemetry = e.payload;
-    renderNxAgent();
+    if(!telemetryState) renderNxAgent();
   });
 } catch(e) { /* direct command refresh still works */ }
 
