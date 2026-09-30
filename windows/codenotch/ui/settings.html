@@ -99,6 +99,23 @@
   .agent-badge.denied,.agent-badge.failed{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
   .agent-badge.allowed{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
 
+  /* ---- Gateway telemetry ------------------------------------------------ */
+  .gateway-overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:6px 0 14px}
+  .gateway-stat{background:var(--group);border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-width:0}
+  .gateway-stat strong{display:block;font-size:18px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gateway-stat span{display:block;margin-top:4px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
+  .gateway-live{display:flex;align-items:center;gap:8px}
+  .gateway-dot{width:8px;height:8px;border-radius:50%;background:#59636E;box-shadow:0 0 0 3px rgba(89,99,110,.10)}
+  .gateway-dot.active{background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
+  .gateway-routes{padding:3px 0}
+  .gateway-route{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 12px}
+  .gateway-route + .gateway-route{border-top:1px solid var(--sep)}
+  .gateway-route-main{min-width:0}
+  .gateway-route-provider{font-size:11px;font-weight:650;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gateway-route-model{font-size:10px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gateway-route-requests{font-size:10px;color:var(--text3);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .gateway-empty{padding:16px 12px;color:var(--text2);font-size:12px}
+
   /* ---- account rows ---- */
   .acct{padding:9px 12px}
   .acct-line{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:24px}
@@ -276,6 +293,7 @@
     <button class="row" id="tab-accounts" role="tab" aria-controls="pane-accounts" aria-selected="false" tabindex="-1"><span class="badge b-blue"><svg viewBox="0 0 12 12"><circle cx="6" cy="4" r="2.4"/><path d="M1.5 11.2c.4-2.5 2.3-3.9 4.5-3.9s4.1 1.4 4.5 3.9z"/></svg></span><span>Accounts</span></button>
     <button class="row" id="tab-appearance" role="tab" aria-controls="pane-appearance" aria-selected="false" tabindex="-1"><span class="badge b-indigo"><svg viewBox="0 0 12 12"><path d="M10 .9a.8.8 0 0 1 1.1 1.1L6.4 6.7 5.3 5.6zM4.6 6.3l1.1 1.1c.2 1.9-1.9 3.6-4.7 3.1.9-.4 1.2-1 1.3-1.8.1-1.3 1.1-2.3 2.3-2.4z"/></svg></span><span>Appearance</span></button>
     <button class="row" id="tab-agent" role="tab" aria-controls="pane-agent" aria-selected="false" tabindex="-1"><span class="badge b-green"><svg viewBox="0 0 12 12"><path d="M2 3.2h8v5.6H2z"/><circle cx="4.2" cy="5.7" r=".8" fill="#0B0D10"/><circle cx="7.8" cy="5.7" r=".8" fill="#0B0D10"/><path d="M4 8h4v1H4z" fill="#0B0D10"/></svg></span><span>Agent</span></button>
+    <button class="row" id="tab-gateway" role="tab" aria-controls="pane-gateway" aria-selected="false" tabindex="-1"><span class="badge b-blue"><svg viewBox="0 0 12 12"><circle cx="3" cy="6" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="9" cy="9" r="1.6"/><path d="M4.4 5.3 7.6 3.7M4.4 6.7l3.2 1.6" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></span><span>Gateway</span></button>
     <button class="row" id="tab-general" role="tab" aria-controls="pane-general" aria-selected="false" tabindex="-1"><span class="badge b-gray"><svg viewBox="0 0 12 12"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg></span><span>General</span></button>
     <div class="grow" data-tauri-drag-region></div>
     <button class="row" id="quit"><span class="badge b-red"><svg viewBox="0 0 12 12"><path d="M6 1.2v4.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M3.4 3.1a3.9 3.9 0 1 0 5.2 0" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span><span>Quit RunOptic</span></button>
@@ -375,6 +393,34 @@
         <div class="sec">Recent activity</div>
         <div class="group agent-timeline" id="agent-timeline">
           <div class="agent-empty">No NX Agent activity captured yet.</div>
+        </div>
+      </section>
+
+      <section class="pane" id="pane-gateway" role="tabpanel" aria-labelledby="tab-gateway" hidden>
+        <div class="sec">9router</div>
+        <div class="group">
+          <div class="item">
+            <span class="gateway-live"><span class="gateway-dot" id="gateway-dot"></span><span>Gateway</span></span>
+            <span class="value" id="gateway-status">Waiting for gateway telemetry</span>
+          </div>
+          <div class="item"><span>Environment</span><span class="value" id="gateway-environment">—</span></div>
+        </div>
+        <div class="sec">Today</div>
+        <div class="gateway-overview">
+          <div class="gateway-stat"><strong id="gateway-requests">—</strong><span>Requests</span></div>
+          <div class="gateway-stat"><strong id="gateway-cost">—</strong><span>Cost</span></div>
+          <div class="gateway-stat"><strong id="gateway-input">—</strong><span>Input</span></div>
+          <div class="gateway-stat"><strong id="gateway-output">—</strong><span>Output</span></div>
+        </div>
+        <div class="group">
+          <div class="item"><span>Cached tokens</span><span class="value" id="gateway-cached">—</span></div>
+          <div class="item"><span>Recent latency · average</span><span class="value" id="gateway-latency">—</span></div>
+          <div class="item"><span>TTFT · average</span><span class="value" id="gateway-ttft">—</span></div>
+          <div class="item"><span>Recent request samples</span><span class="value" id="gateway-samples">—</span></div>
+        </div>
+        <div class="sec">Routes observed today</div>
+        <div class="group gateway-routes" id="gateway-routes">
+          <div class="gateway-empty">No 9router usage captured yet.</div>
         </div>
       </section>
 
@@ -983,8 +1029,8 @@ function loadLook(){
 dark.addEventListener('change', applyAccent);
 
 /* ---- the sidebar -------------------------------------------------------- */
-const TABS = ['accounts', 'appearance', 'agent', 'general'];
-const TITLES = { accounts:'Accounts', appearance:'Appearance', agent:'Agent Activity', general:'General' };
+const TABS = ['accounts', 'appearance', 'agent', 'gateway', 'general'];
+const TITLES = { accounts:'Accounts', appearance:'Appearance', agent:'Agent Activity', gateway:'Gateway Telemetry', general:'General' };
 const TAB_KEY = 'runoptic.settings.pane';
 let curTab = TABS[0];
 function showTab(id, moveFocus){
@@ -1226,17 +1272,119 @@ function renderNxAgent(){
   if(normalized) renderNormalizedNxAgent(normalized);
   else renderLegacyNxAgent();
 }
+
+function sumKnown(rows, key){
+  let known = false, total = 0;
+  for(const row of rows){
+    if(!row || row[key] == null) continue;
+    const value = Number(row[key]);
+    if(!Number.isFinite(value)) continue;
+    known = true;
+    total += value;
+  }
+  return known ? total : null;
+}
+function avgKnown(rows, key){
+  const values = [];
+  for(const row of rows){
+    if(!row || row[key] == null) continue;
+    const value = Number(row[key]);
+    if(Number.isFinite(value)) values.push(value);
+  }
+  return values.length ? values.reduce((a,b) => a + b, 0) / values.length : null;
+}
+function fmtCost(value){
+  if(value == null) return '—';
+  const v = Number(value);
+  if(!Number.isFinite(v)) return '—';
+  if(v === 0) return '$0.00';
+  if(Math.abs(v) < 1) return '$' + v.toFixed(4);
+  return '$' + v.toFixed(2);
+}
+function normalizedGatewayData(){
+  const snap = telemetryState;
+  if(!snap || snap.protocol !== 'runoptic.telemetry.v1') return null;
+  const usage = Array.isArray(snap.usage)
+    ? snap.usage.filter(v => v && v.provenance && v.provenance.collector === '9router')
+    : [];
+  const performance = Array.isArray(snap.performance)
+    ? snap.performance.filter(v => v && v.provenance && v.provenance.collector === '9router')
+    : [];
+  if(!usage.length && !performance.length) return null;
+
+  const routes = usage.map(v => ({
+    provider: v.provider || '9router',
+    model: v.model || 'Unknown model',
+    requests: v.requests == null ? null : Number(v.requests)
+  })).sort((a,b) => {
+    const ar = Number.isFinite(a.requests) ? a.requests : -1;
+    const br = Number.isFinite(b.requests) ? b.requests : -1;
+    return br - ar || a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model);
+  });
+
+  const environment = (usage[0] && usage[0].environment_id)
+    || (performance[0] && performance[0].environment_id)
+    || null;
+
+  return {
+    environment,
+    requests: sumKnown(usage, 'requests'),
+    cost: sumKnown(usage, 'cost_usd'),
+    input: sumKnown(usage, 'input_tokens'),
+    output: sumKnown(usage, 'output_tokens'),
+    cached: sumKnown(usage, 'cached_tokens'),
+    latencyMs: avgKnown(performance, 'latency_ms'),
+    ttftMs: avgKnown(performance, 'ttft_ms'),
+    samples: performance.length,
+    routes
+  };
+}
+function renderGateway(){
+  const data = normalizedGatewayData();
+  const dot = document.getElementById('gateway-dot');
+  if(!dot) return;
+  dot.classList.toggle('active', !!data);
+  document.getElementById('gateway-status').textContent = data ? 'Live' : 'Waiting for gateway telemetry';
+  document.getElementById('gateway-environment').textContent = data && data.environment || '—';
+  document.getElementById('gateway-requests').textContent = data ? fmtCompact(data.requests) : '—';
+  document.getElementById('gateway-cost').textContent = data ? fmtCost(data.cost) : '—';
+  document.getElementById('gateway-input').textContent = data ? fmtCompact(data.input) : '—';
+  document.getElementById('gateway-output').textContent = data ? fmtCompact(data.output) : '—';
+  document.getElementById('gateway-cached').textContent = data ? fmtCompact(data.cached) : '—';
+  document.getElementById('gateway-latency').textContent = data ? fmtLatency(data.latencyMs) : '—';
+  document.getElementById('gateway-ttft').textContent = data ? fmtLatency(data.ttftMs) : '—';
+  document.getElementById('gateway-samples').textContent = data ? fmtCompact(data.samples) : '—';
+
+  const routes = document.getElementById('gateway-routes');
+  if(!data || !data.routes.length){
+    routes.innerHTML = '<div class="gateway-empty">No 9router usage captured yet.</div>';
+    return;
+  }
+  routes.innerHTML = data.routes.map(route =>
+    '<div class="gateway-route">'
+      + '<div class="gateway-route-main">'
+      + '<div class="gateway-route-provider">' + esc(route.provider) + '</div>'
+      + '<div class="gateway-route-model">' + esc(route.model) + '</div>'
+      + '</div>'
+      + '<div class="gateway-route-requests">' + esc(route.requests == null ? '—' : fmtCompact(route.requests)) + ' requests</div>'
+      + '</div>'
+  ).join('');
+}
+function renderTelemetryPanels(){
+  renderNxAgent();
+  renderGateway();
+}
 function refreshNxAgent(){
   return call('get_telemetry_state', undefined, null)
     .then(v => {
       if(v && typeof v === 'object') telemetryState = v;
       if(telemetryState) {
-        renderNxAgent();
+        renderTelemetryPanels();
         return null;
       }
       return call('get_nx_agent_telemetry', undefined, null).then(legacy => {
         if(legacy && typeof legacy === 'object') nxAgentTelemetry = legacy;
-        renderNxAgent();
+        renderTelemetryPanels();
         return legacy;
       });
     });
@@ -1244,7 +1392,7 @@ function refreshNxAgent(){
 try {
   window.__TAURI__.event.listen('telemetry-state', e => {
     if(e.payload) telemetryState = e.payload;
-    renderNxAgent();
+    renderTelemetryPanels();
   });
   window.__TAURI__.event.listen('nx-agent-telemetry', e => {
     if(e.payload) nxAgentTelemetry = e.payload;
@@ -1661,6 +1809,7 @@ function renderAll(){
   renderEdge();
   renderScreens();
   renderWeekly();
+  renderGateway();
   drawSwitch(document.getElementById('sw-autostart'), autostart);
   drawSwitch(document.getElementById('sw-move'), moveHandle);
   document.getElementById('title').textContent = ui(TITLES[curTab], TITLES[curTab]);
