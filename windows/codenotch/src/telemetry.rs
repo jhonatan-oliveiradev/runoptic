@@ -375,9 +375,10 @@ pub fn nx_usage_observation(
 }
 
 pub fn nx_session_observations(snapshot: &nx_agent::Snapshot) -> Vec<AgentSessionObservation> {
-    let mut latest_by_session: BTreeMap<String, &nx_agent::TelemetryEvent> = BTreeMap::new();
+    let mut latest_by_session: BTreeMap<(String, String), &nx_agent::TelemetryEvent> =
+        BTreeMap::new();
     for event in &snapshot.recent {
-        latest_by_session.insert(event.session_id.clone(), event);
+        latest_by_session.insert((nx_environment(Some(event)), event.session_id.clone()), event);
     }
 
     latest_by_session
@@ -584,8 +585,9 @@ mod tests {
         state.rebuild(&[], &[], &snapshot);
         let current = state.snapshot();
 
-        assert_eq!(sessions.len(), 1, "latest event per session is one source observation");
-        assert_eq!(current.sessions.len(), 1);
-        assert_eq!(current.sessions[0].environment_id, "wsl:ubuntu-24.04");
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(current.sessions.len(), 2);
+        assert_eq!(current.sessions[0].environment_id, "windows-native");
+        assert_eq!(current.sessions[1].environment_id, "wsl:ubuntu-24.04");
     }
 }
