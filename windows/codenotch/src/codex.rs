@@ -857,6 +857,7 @@ fn broadcast_account_usage(
     let _ = app.emit("codex_account_usage", &accounts);
     let _ = app.emit("codex_profiles", &observations);
     let _ = app.emit("codex", &legacy);
+    crate::telemetry::refresh_from_app(app);
 }
 
 /// Poll quota once per vendor account, not once per installation/profile.
