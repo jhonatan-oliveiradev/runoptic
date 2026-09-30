@@ -345,24 +345,59 @@ fn latest_model_event(snapshot: &nx_agent::Snapshot) -> Option<&nx_agent::Teleme
         .find(|event| event.event_type == "model.completed")
 }
 
+fn sum_known_usage<F>(snapshot: &nx_agent::Snapshot, field: F) -> Option<u64>
+where
+    F: Fn(&nx_agent::Usage) -> Option<u64>,
+{
+    let mut saw_value = false;
+    let total = snapshot
+        .recent
+        .iter()
+        .filter(|event| event.event_type == "model.completed")
+        .filter_map(|event| event.usage.as_ref())
+        .filter_map(|usage| {
+            let value = field(usage);
+            saw_value |= value.is_some();
+            value
+        })
+        .sum::<u64>();
+    saw_value.then_some(total)
+}
+
+fn nx_context_event(snapshot: &nx_agent::Snapshot) -> Option<&nx_agent::TelemetryEvent> {
+    snapshot
+        .recent
+        .iter()
+        .rev()
+        .find(|event| event.environment_id.is_some() || event.project_id.is_some())
+        .or_else(|| snapshot.recent.last())
+}
+
 pub fn nx_usage_observation(
     snapshot: &nx_agent::Snapshot,
 ) -> std::option::IntoIter<UsageObservation> {
     let latest = latest_model_event(snapshot);
-    let has_evidence = !snapshot.recent.is_empty();
-    let observation = has_evidence.then(|| UsageObservation {
-        provider: latest
-            .and_then(|event| event.provider.clone())
+    let context = nx_context_event(snapshot);
+    let model_calls = snapshot
+        .recent
+        .iter()
+        .filter(|event| event.event_type == "model.completed")
+        .count() as u64;
+
+    let observation = latest.map(|latest_model| UsageObservation {
+        provider: latest_model
+            .provider
+            .clone()
             .unwrap_or_else(|| "nx-agent".into()),
         account_id: None,
-        environment_id: nx_environment(latest.or_else(|| snapshot.recent.last())),
-        model: latest.and_then(|event| event.model.clone()),
-        project_id: nx_project(latest.or_else(|| snapshot.recent.last())),
-        input_tokens: Some(snapshot.totals.input_tokens),
-        output_tokens: Some(snapshot.totals.output_tokens),
-        cached_tokens: Some(snapshot.totals.cached_tokens),
-        reasoning_tokens: Some(snapshot.totals.reasoning_tokens),
-        requests: Some(snapshot.totals.model_calls),
+        environment_id: nx_environment(context),
+        model: latest_model.model.clone(),
+        project_id: nx_project(context),
+        input_tokens: sum_known_usage(snapshot, |usage| usage.input_tokens),
+        output_tokens: sum_known_usage(snapshot, |usage| usage.output_tokens),
+        cached_tokens: sum_known_usage(snapshot, |usage| usage.cached_tokens),
+        reasoning_tokens: sum_known_usage(snapshot, |usage| usage.reasoning_tokens),
+        requests: Some(model_calls),
         cost_usd: None,
         quota_windows: Vec::new(),
         provenance: Provenance {
@@ -556,6 +591,38 @@ mod tests {
             environment_id: environment.map(str::to_string),
             project_id: Some("runoptic".into()),
         }
+    }
+
+    #[test]
+    fn nx_usage_keeps_unreported_token_fields_unknown() {
+        let mut collector = nx_agent::Collector::default();
+        let mut event = nx_event("model.completed", "s1", Some("wsl:ubuntu-24.04"));
+        event.usage = Some(nx_agent::Usage {
+            input_tokens: Some(120),
+            output_tokens: None,
+            total_tokens: None,
+            cached_tokens: None,
+            reasoning_tokens: None,
+        });
+        collector.ingest(event);
+
+        let snapshot = collector.snapshot();
+        let observation = nx_usage_observation(&snapshot).next().unwrap();
+
+        assert_eq!(observation.input_tokens, Some(120));
+        assert_eq!(observation.output_tokens, None);
+        assert_eq!(observation.cached_tokens, None);
+        assert_eq!(observation.reasoning_tokens, None);
+        assert_eq!(observation.requests, Some(1));
+    }
+
+    #[test]
+    fn nx_query_without_model_usage_emits_no_usage_observation() {
+        let mut collector = nx_agent::Collector::default();
+        collector.ingest(nx_event("query.started", "s1", Some("windows-native")));
+
+        let snapshot = collector.snapshot();
+        assert!(nx_usage_observation(&snapshot).next().is_none());
     }
 
     #[test]
