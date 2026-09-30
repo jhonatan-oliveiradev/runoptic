@@ -316,7 +316,8 @@ pub fn append_history(snapshot: &TelemetrySnapshot) -> std::io::Result<usize> {
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
     let mut written = 0;
     for (record, fingerprint) in changed {
-        let line = serde_json::to_string(&record)?;
+        let line = serde_json::to_string(&record)
+            .map_err(std::io::Error::other)?;
         writeln!(file, "{line}")?;
         index.last_by_key.insert(record.key, fingerprint);
         written += 1;
