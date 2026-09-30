@@ -96,6 +96,36 @@ pub struct AgentSessionObservation {
     pub provenance: Provenance,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ActivityKind {
+    QueryStarted,
+    ModelCompleted,
+    ToolCompleted,
+    QueryCompleted,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ActivityObservation {
+    pub id: String,
+    pub kind: ActivityKind,
+    pub session_id: String,
+    pub agent: String,
+    pub environment_id: String,
+    pub project_id: Option<String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub skill_id: Option<String>,
+    pub tool_name: Option<String>,
+    pub decision: Option<String>,
+    pub permission: Option<String>,
+    pub error: Option<String>,
+    pub latency_ms: Option<u64>,
+    /// Producer timestamp retained as reported. History normalization/parsing is deferred.
+    pub occurred_at: String,
+    pub provenance: Provenance,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PerformanceObservation {
     pub source_id: String,
@@ -117,6 +147,7 @@ pub struct TelemetrySnapshot {
     pub protocol: String,
     pub usage: Vec<UsageObservation>,
     pub sessions: Vec<AgentSessionObservation>,
+    pub activity: Vec<ActivityObservation>,
     pub performance: Vec<PerformanceObservation>,
     pub updated_at_ms: u64,
 }
@@ -125,6 +156,7 @@ pub struct TelemetrySnapshot {
 pub struct TelemetryState {
     usage: BTreeMap<String, UsageObservation>,
     sessions: BTreeMap<String, AgentSessionObservation>,
+    activity: Vec<ActivityObservation>,
     performance: BTreeMap<String, PerformanceObservation>,
     updated_at_ms: u64,
 }
@@ -138,6 +170,7 @@ impl TelemetryState {
     ) {
         self.usage.clear();
         self.sessions.clear();
+        self.activity.clear();
         self.performance.clear();
 
         for observation in codex_usage_observations(codex_accounts)
@@ -152,6 +185,8 @@ impl TelemetryState {
             self.sessions.insert(session_key(&observation), observation);
         }
 
+        self.activity = nx_activity_observations(nx);
+
         for observation in nx_performance_observations(nx) {
             self.performance
                 .insert(performance_key(&observation), observation);
@@ -165,6 +200,7 @@ impl TelemetryState {
             protocol: TELEMETRY_PROTOCOL.to_string(),
             usage: self.usage.values().cloned().collect(),
             sessions: self.sessions.values().cloned().collect(),
+            activity: self.activity.clone(),
             performance: self.performance.values().cloned().collect(),
             updated_at_ms: self.updated_at_ms,
         }
@@ -448,6 +484,45 @@ pub fn nx_session_observations(snapshot: &nx_agent::Snapshot) -> Vec<AgentSessio
         .collect()
 }
 
+pub fn nx_activity_observations(snapshot: &nx_agent::Snapshot) -> Vec<ActivityObservation> {
+    snapshot
+        .recent
+        .iter()
+        .filter_map(|event| {
+            let kind = match event.event_type.as_str() {
+                "query.started" => ActivityKind::QueryStarted,
+                "model.completed" => ActivityKind::ModelCompleted,
+                "tool.completed" => ActivityKind::ToolCompleted,
+                "query.completed" => ActivityKind::QueryCompleted,
+                _ => return None,
+            };
+
+            Some(ActivityObservation {
+                id: event.id.clone(),
+                kind,
+                session_id: event.session_id.clone(),
+                agent: "nx-agent".into(),
+                environment_id: nx_environment(Some(event)),
+                project_id: nx_project(Some(event)),
+                provider: event.provider.clone(),
+                model: event.model.clone(),
+                skill_id: event.skill_id.clone(),
+                tool_name: event.tool_name.clone(),
+                decision: event.decision.clone(),
+                permission: event.permission.clone(),
+                error: event.error.clone(),
+                latency_ms: event.latency_ms,
+                occurred_at: event.timestamp.clone(),
+                provenance: Provenance {
+                    kind: ProvenanceKind::LocalObservation,
+                    collector: "nx-agent".into(),
+                    observed_at_ms: now_ms(),
+                },
+            })
+        })
+        .collect()
+}
+
 pub fn nx_performance_observations(
     snapshot: &nx_agent::Snapshot,
 ) -> Vec<PerformanceObservation> {
@@ -643,6 +718,48 @@ mod tests {
 
         let sessions = nx_session_observations(&snapshot);
         assert_eq!(sessions[0].environment_id, "source:nx-agent");
+    }
+
+    #[test]
+    fn nx_activity_preserves_tool_decision_and_context() {
+        let mut collector = nx_agent::Collector::default();
+        let mut event = nx_event("tool.completed", "s1", Some("wsl:ubuntu-24.04"));
+        event.skill_id = Some("github".into());
+        event.tool_name = Some("merge".into());
+        event.decision = Some("denied".into());
+        event.permission = Some("write".into());
+        collector.ingest(event);
+
+        let activity = nx_activity_observations(&collector.snapshot());
+
+        assert_eq!(activity.len(), 1);
+        assert_eq!(activity[0].kind, ActivityKind::ToolCompleted);
+        assert_eq!(activity[0].environment_id, "wsl:ubuntu-24.04");
+        assert_eq!(activity[0].project_id.as_deref(), Some("runoptic"));
+        assert_eq!(activity[0].skill_id.as_deref(), Some("github"));
+        assert_eq!(activity[0].tool_name.as_deref(), Some("merge"));
+        assert_eq!(activity[0].decision.as_deref(), Some("denied"));
+        assert_eq!(activity[0].permission.as_deref(), Some("write"));
+    }
+
+    #[test]
+    fn telemetry_snapshot_includes_normalized_activity() {
+        let snapshot = nx_agent::Snapshot {
+            protocol: "nx.telemetry.v1",
+            totals: nx_agent::Totals::default(),
+            recent: vec![nx_event(
+                "query.started",
+                "session-a",
+                Some("windows-native"),
+            )],
+        };
+        let mut state = TelemetryState::default();
+        state.rebuild(&[], &[], &snapshot);
+        let current = state.snapshot();
+
+        assert_eq!(current.activity.len(), 1);
+        assert_eq!(current.activity[0].kind, ActivityKind::QueryStarted);
+        assert_eq!(current.activity[0].agent, "nx-agent");
     }
 
     #[test]
