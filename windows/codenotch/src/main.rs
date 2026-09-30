@@ -11,6 +11,7 @@ mod hooks_install;
 mod i18n;
 mod notchmenu;
 mod nx_agent;
+mod telemetry;
 mod server;
 mod state;
 mod tray;
@@ -58,6 +59,8 @@ pub struct AppState {
     pub activity: Mutex<Vec<activity::Activity>>,
     /// Privacy-preserving telemetry emitted by NX Agent over the local collector endpoint.
     pub nx_agent: Mutex<nx_agent::Collector>,
+    /// Provider-agnostic current telemetry state. Rebuilt from the active collectors.
+    pub telemetry: Mutex<telemetry::TelemetryState>,
     /// Environment/profile inventory. Populated off the UI thread after startup so WSL discovery
     /// cannot delay the notch becoming visible.
     pub inventory: Mutex<Option<inventory::RuntimeInventory>>,
@@ -681,6 +684,11 @@ fn get_activity(state: tauri::State<AppState>) -> Vec<activity::Activity> {
 #[tauri::command]
 fn get_nx_agent_telemetry(state: tauri::State<AppState>) -> nx_agent::Snapshot {
     state.nx_agent.lock().unwrap().snapshot()
+}
+
+#[tauri::command]
+fn get_telemetry_state(state: tauri::State<AppState>) -> telemetry::TelemetrySnapshot {
+    state.telemetry.lock().unwrap().snapshot()
 }
 
 #[tauri::command]
@@ -1640,6 +1648,7 @@ fn main() {
             glyphs: Mutex::new(Default::default()),
             activity: Mutex::new(Vec::new()),
             nx_agent: Mutex::new(Default::default()),
+            telemetry: Mutex::new(Default::default()),
             inventory: Mutex::new(None),
             codex_profiles: Mutex::new(Vec::new()),
             claude_profiles: Mutex::new(Vec::new()),
@@ -1667,6 +1676,7 @@ fn main() {
             get_glyphs,
             get_activity,
             get_nx_agent_telemetry,
+            get_telemetry_state,
             open_data_dir,
             drag_begin,
             refresh_ring,
@@ -1724,6 +1734,7 @@ fn main() {
             // Honours the saved switches: a notch hidden last time stays hidden.
             apply_visibility(&handle);
             server::start(handle.clone(), port);
+            telemetry::refresh_from_app(&handle);
 
             // WSL/profile discovery can take a moment on a machine with running distributions.
             // Keep it off the UI thread and cache one launch-time snapshot for every consumer.
