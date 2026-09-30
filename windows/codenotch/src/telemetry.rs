@@ -442,11 +442,10 @@ pub fn nx_performance_observations(
 pub fn refresh_from_app(app: &AppHandle) -> TelemetrySnapshot {
     let (codex_accounts, claude_accounts, nx_snapshot) = {
         let state = app.state::<AppState>();
-        (
-            state.codex_account_usage.lock().unwrap().clone(),
-            state.claude_account_usage.lock().unwrap().clone(),
-            state.nx_agent.lock().unwrap().snapshot(),
-        )
+        let codex_accounts = state.codex_account_usage.lock().unwrap().clone();
+        let claude_accounts = state.claude_account_usage.lock().unwrap().clone();
+        let nx_snapshot = state.nx_agent.lock().unwrap().snapshot();
+        (codex_accounts, claude_accounts, nx_snapshot)
     };
 
     let snapshot = {
