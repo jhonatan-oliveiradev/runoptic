@@ -6,6 +6,8 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{codex, nx_agent, usage, AppState};
 
+pub const TELEMETRY_PROTOCOL: &str = "runoptic.telemetry.v1";
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -112,6 +114,7 @@ pub struct PerformanceObservation {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct TelemetrySnapshot {
+    pub protocol: String,
     pub usage: Vec<UsageObservation>,
     pub sessions: Vec<AgentSessionObservation>,
     pub performance: Vec<PerformanceObservation>,
@@ -159,6 +162,7 @@ impl TelemetryState {
 
     pub fn snapshot(&self) -> TelemetrySnapshot {
         TelemetrySnapshot {
+            protocol: TELEMETRY_PROTOCOL.to_string(),
             usage: self.usage.values().cloned().collect(),
             sessions: self.sessions.values().cloned().collect(),
             performance: self.performance.values().cloned().collect(),
@@ -508,6 +512,12 @@ mod tests {
             derived: false,
             group: None,
         }
+    }
+
+    #[test]
+    fn snapshot_exposes_versioned_consumer_protocol() {
+        let snapshot = TelemetryState::default().snapshot();
+        assert_eq!(snapshot.protocol, TELEMETRY_PROTOCOL);
     }
 
     #[test]
