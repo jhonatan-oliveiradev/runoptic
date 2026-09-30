@@ -275,6 +275,10 @@ pub fn run() -> String {
     o += &format!("  {}\n", crate::cursor::probe());
     o += &format!("  {}\n", crate::grok::probe());
     o += &format!("  {}\n", crate::antigravity::probe());
+    o += &format!(
+        "  {}\n",
+        crate::gateway_9router::probe(&environment_report.environments)
+    );
     let history_path = crate::telemetry::history_path();
     let history = crate::telemetry::read_history_tail(5);
     o += &format!(
