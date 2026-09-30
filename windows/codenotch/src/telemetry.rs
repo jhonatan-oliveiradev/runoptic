@@ -7,7 +7,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{codex, nx_agent, usage, AppState};
+use crate::{codex, gateway_9router, nx_agent, usage, AppState};
 
 pub const TELEMETRY_PROTOCOL: &str = "runoptic.telemetry.v1";
 pub const TELEMETRY_HISTORY_PROTOCOL: &str = "runoptic.telemetry.history.v1";
@@ -62,6 +62,8 @@ pub struct QuotaWindow {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UsageObservation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
     pub provider: String,
     pub account_id: Option<String>,
     pub environment_id: String,
@@ -132,6 +134,8 @@ pub struct ActivityObservation {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PerformanceObservation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
     pub source_id: String,
     pub environment_id: String,
     pub model: Option<String>,
@@ -390,6 +394,22 @@ impl TelemetryState {
         self.updated_at_ms = now_ms();
     }
 
+    pub fn merge_gateway(&mut self, gateway: &gateway_9router::Snapshot) {
+        self.usage
+            .retain(|_, observation| observation.provenance.collector != "9router");
+        self.performance
+            .retain(|_, observation| observation.provenance.collector != "9router");
+
+        for observation in gateway_usage_observations(gateway) {
+            self.usage.insert(usage_key(&observation), observation);
+        }
+        for observation in gateway_performance_observations(gateway) {
+            self.performance
+                .insert(performance_key(&observation), observation);
+        }
+        self.updated_at_ms = now_ms();
+    }
+
     pub fn snapshot(&self) -> TelemetrySnapshot {
         TelemetrySnapshot {
             protocol: TELEMETRY_PROTOCOL.to_string(),
@@ -403,6 +423,9 @@ impl TelemetryState {
 }
 
 fn usage_key(observation: &UsageObservation) -> String {
+    if let Some(id) = observation.observation_id.as_deref() {
+        return format!("observation|{id}");
+    }
     format!(
         "{}|{}|{}|{}|{}",
         observation.provider,
@@ -421,6 +444,9 @@ fn session_key(observation: &AgentSessionObservation) -> String {
 }
 
 fn performance_key(observation: &PerformanceObservation) -> String {
+    if let Some(id) = observation.observation_id.as_deref() {
+        return format!("observation|{id}");
+    }
     format!("{}|{}", observation.environment_id, observation.source_id)
 }
 
@@ -490,6 +516,7 @@ pub fn codex_usage_observations(accounts: &[codex::AccountUsage]) -> Vec<UsageOb
                 .as_deref()
                 .unwrap_or(&account.selected_profile_key);
             UsageObservation {
+                observation_id: None,
                 provider: "codex".into(),
                 account_id: Some(account.key.clone()),
                 environment_id: profile_environment_id(environment_id),
@@ -531,6 +558,7 @@ pub fn claude_usage_observations(
                 .as_deref()
                 .unwrap_or(&account.selected_profile_key);
             UsageObservation {
+                observation_id: None,
                 provider: "claude".into(),
                 account_id: Some(account.key.clone()),
                 environment_id: profile_environment_id(environment_id),
@@ -620,6 +648,7 @@ pub fn nx_usage_observation(
         .count() as u64;
 
     let observation = latest.map(|latest_model| UsageObservation {
+            observation_id: None,
         provider: latest_model
             .provider
             .clone()
@@ -718,6 +747,69 @@ pub fn nx_activity_observations(snapshot: &nx_agent::Snapshot) -> Vec<ActivityOb
         .collect()
 }
 
+pub fn gateway_usage_observations(
+    snapshot: &gateway_9router::Snapshot,
+) -> Vec<UsageObservation> {
+    if snapshot.status != "ok" {
+        return Vec::new();
+    }
+    snapshot
+        .usage
+        .iter()
+        .map(|sample| UsageObservation {
+            observation_id: Some(sample.observation_id.clone()),
+            provider: sample.provider.clone(),
+            account_id: None,
+            environment_id: snapshot.source_environment_id.clone(),
+            model: Some(sample.model.clone()),
+            project_id: None,
+            input_tokens: Some(sample.input_tokens),
+            output_tokens: Some(sample.output_tokens),
+            cached_tokens: Some(sample.cached_tokens),
+            reasoning_tokens: None,
+            requests: Some(sample.requests),
+            cost_usd: Some(sample.cost_usd),
+            quota_windows: Vec::new(),
+            provenance: Provenance {
+                kind: ProvenanceKind::LocalObservation,
+                collector: "9router".into(),
+                observed_at_ms: snapshot.fetched_at_ms,
+            },
+        })
+        .collect()
+}
+
+pub fn gateway_performance_observations(
+    snapshot: &gateway_9router::Snapshot,
+) -> Vec<PerformanceObservation> {
+    if snapshot.status != "ok" {
+        return Vec::new();
+    }
+    snapshot
+        .performance
+        .iter()
+        .map(|sample| PerformanceObservation {
+            observation_id: Some(sample.observation_id.clone()),
+            source_id: format!("9router:{}", sample.observation_id),
+            environment_id: snapshot.source_environment_id.clone(),
+            model: sample.model.clone(),
+            latency_ms: sample.latency_ms,
+            ttft_ms: sample.ttft_ms,
+            tokens_per_second: None,
+            context_used_tokens: None,
+            context_limit_tokens: None,
+            ram_bytes: None,
+            vram_bytes: None,
+            queue_depth: None,
+            provenance: Provenance {
+                kind: ProvenanceKind::LocalObservation,
+                collector: "9router".into(),
+                observed_at_ms: snapshot.fetched_at_ms,
+            },
+        })
+        .collect()
+}
+
 pub fn nx_performance_observations(
     snapshot: &nx_agent::Snapshot,
 ) -> Vec<PerformanceObservation> {
@@ -728,6 +820,7 @@ pub fn nx_performance_observations(
         .filter(|event| event.latency_ms.is_some())
         .take(1)
         .map(|event| PerformanceObservation {
+            observation_id: None,
             source_id: format!("{}:{}", event.session_id, event.query_id),
             environment_id: nx_environment(Some(event)),
             model: event.model.clone(),
@@ -749,18 +842,20 @@ pub fn nx_performance_observations(
 }
 
 pub fn refresh_from_app(app: &AppHandle) -> TelemetrySnapshot {
-    let (codex_accounts, claude_accounts, nx_snapshot) = {
+    let (codex_accounts, claude_accounts, nx_snapshot, gateway_snapshot) = {
         let state = app.state::<AppState>();
         let codex_accounts = state.codex_account_usage.lock().unwrap().clone();
         let claude_accounts = state.claude_account_usage.lock().unwrap().clone();
         let nx_snapshot = state.nx_agent.lock().unwrap().snapshot();
-        (codex_accounts, claude_accounts, nx_snapshot)
+        let gateway_snapshot = state.gateway_9router.lock().unwrap().clone();
+        (codex_accounts, claude_accounts, nx_snapshot, gateway_snapshot)
     };
 
     let snapshot = {
         let state = app.state::<AppState>();
         let mut telemetry = state.telemetry.lock().unwrap();
         telemetry.rebuild(&codex_accounts, &claude_accounts, &nx_snapshot);
+        telemetry.merge_gateway(&gateway_snapshot);
         telemetry.snapshot()
     };
 
@@ -1001,6 +1096,62 @@ mod tests {
 
         assert_eq!(activity.key, "activity:nx-agent:event-stable");
         assert_eq!(activity.protocol, TELEMETRY_HISTORY_PROTOCOL);
+    }
+
+    #[test]
+    fn gateway_usage_maps_tokens_requests_and_cost_without_quota_guessing() {
+        let snapshot = gateway_9router::Snapshot {
+            status: "ok".into(),
+            source_environment_id: "wsl:ubuntu-24.04".into(),
+            fetched_at_ms: 123,
+            usage: vec![gateway_9router::UsageSample {
+                observation_id: "9router:today:p:m".into(),
+                provider: "p".into(),
+                model: "m".into(),
+                requests: 2,
+                input_tokens: 100,
+                output_tokens: 20,
+                cached_tokens: 30,
+                cost_usd: 0.5,
+            }],
+            ..Default::default()
+        };
+
+        let observations = gateway_usage_observations(&snapshot);
+        assert_eq!(observations.len(), 1);
+        let observation = &observations[0];
+        assert_eq!(observation.observation_id.as_deref(), Some("9router:today:p:m"));
+        assert_eq!(observation.environment_id, "wsl:ubuntu-24.04");
+        assert_eq!(observation.input_tokens, Some(100));
+        assert_eq!(observation.output_tokens, Some(20));
+        assert_eq!(observation.cached_tokens, Some(30));
+        assert_eq!(observation.requests, Some(2));
+        assert_eq!(observation.cost_usd, Some(0.5));
+        assert!(observation.quota_windows.is_empty());
+        assert_eq!(observation.provenance.collector, "9router");
+    }
+
+    #[test]
+    fn gateway_performance_preserves_request_identity() {
+        let snapshot = gateway_9router::Snapshot {
+            status: "ok".into(),
+            source_environment_id: "gateway:9router".into(),
+            fetched_at_ms: 456,
+            performance: vec![gateway_9router::RequestPerformance {
+                observation_id: "request-1".into(),
+                provider: Some("p".into()),
+                model: Some("m".into()),
+                latency_ms: Some(900),
+                ttft_ms: Some(120),
+            }],
+            ..Default::default()
+        };
+
+        let observations = gateway_performance_observations(&snapshot);
+        assert_eq!(observations.len(), 1);
+        assert_eq!(observations[0].observation_id.as_deref(), Some("request-1"));
+        assert_eq!(observations[0].latency_ms, Some(900));
+        assert_eq!(observations[0].ttft_ms, Some(120));
     }
 
     #[test]

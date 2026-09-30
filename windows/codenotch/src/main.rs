@@ -12,6 +12,7 @@ mod i18n;
 mod notchmenu;
 mod nx_agent;
 mod telemetry;
+mod gateway_9router;
 mod server;
 mod state;
 mod tray;
@@ -61,6 +62,8 @@ pub struct AppState {
     pub nx_agent: Mutex<nx_agent::Collector>,
     /// Provider-agnostic current telemetry state. Rebuilt from the active collectors.
     pub telemetry: Mutex<telemetry::TelemetryState>,
+    /// Read-only local gateway telemetry from 9router.
+    pub gateway_9router: Mutex<gateway_9router::Snapshot>,
     /// Environment/profile inventory. Populated off the UI thread after startup so WSL discovery
     /// cannot delay the notch becoming visible.
     pub inventory: Mutex<Option<inventory::RuntimeInventory>>,
@@ -689,6 +692,11 @@ fn get_nx_agent_telemetry(state: tauri::State<AppState>) -> nx_agent::Snapshot {
 #[tauri::command]
 fn get_telemetry_state(state: tauri::State<AppState>) -> telemetry::TelemetrySnapshot {
     state.telemetry.lock().unwrap().snapshot()
+}
+
+#[tauri::command]
+fn get_9router_telemetry(state: tauri::State<AppState>) -> gateway_9router::Snapshot {
+    state.gateway_9router.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -1649,6 +1657,7 @@ fn main() {
             activity: Mutex::new(Vec::new()),
             nx_agent: Mutex::new(Default::default()),
             telemetry: Mutex::new(Default::default()),
+            gateway_9router: Mutex::new(Default::default()),
             inventory: Mutex::new(None),
             codex_profiles: Mutex::new(Vec::new()),
             claude_profiles: Mutex::new(Vec::new()),
@@ -1677,6 +1686,7 @@ fn main() {
             get_activity,
             get_nx_agent_telemetry,
             get_telemetry_state,
+            get_9router_telemetry,
             open_data_dir,
             drag_begin,
             refresh_ring,
@@ -1773,9 +1783,13 @@ fn main() {
                 let _ = inventory_app.emit("claude_clis", &claude_clis);
                 let _ = inventory_app.emit("codex_accounts", &codex_accounts);
 
-                // Start account-aware pollers only after environment/profile discovery completes.
-                // They keep the legacy single-ring events updated for the current UI while the
-                // complete per-account state remains available to future presentation work.
+                // Start collectors that depend on environment discovery only after inventory is known.
+                gateway_9router::start(
+                    inventory_app.clone(),
+                    snapshot.environment_report.environments.clone(),
+                );
+
+                // Start account-aware provider pollers.
                 codex::start_accounts(inventory_app.clone(), snapshot.profiles.clone());
                 usage::start_accounts(inventory_app.clone(), snapshot.profiles.clone());
             });
