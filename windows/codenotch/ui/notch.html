@@ -948,15 +948,50 @@ const SESSION_ROWS=5;
 function moreRow(n){ return n>0?`<div class="s-more">${ui().andMore(n)}</div>`:''; }
 
 let nxAgentTelemetry=null;
+let telemetryState=null;
 
 function nxFmt(n){
-  const value=Number(n||0);
+  if(n==null||n==='') return '—';
+  const value=Number(n);
+  if(!Number.isFinite(value)) return '—';
   if(value>=1000000) return (value/1000000).toFixed(value>=10000000?0:1)+'M';
   if(value>=1000) return (value/1000).toFixed(value>=10000?0:1)+'K';
   return String(value);
 }
+function nxLatency(ms){
+  const value=Number(ms);
+  if(!Number.isFinite(value)) return '—';
+  return value>=1000?(value/1000).toFixed(1)+' s':Math.round(value)+' ms';
+}
 
-function nxAgentPanel(){
+function normalizedNxPanel(){
+  const snap=telemetryState;
+  if(!snap||snap.protocol!=='runoptic.telemetry.v1') return '';
+  const sessions=Array.isArray(snap.sessions)?snap.sessions.filter(s=>s&&s.agent==='nx-agent'):[];
+  const usageList=Array.isArray(snap.usage)?snap.usage.filter(u=>u&&u.provenance&&u.provenance.collector==='nx-agent'):[];
+  const perfList=Array.isArray(snap.performance)?snap.performance.filter(p=>p&&p.provenance&&p.provenance.collector==='nx-agent'):[];
+  const usageObs=usageList.length?usageList[usageList.length-1]:null;
+  const perf=perfList.length?perfList[perfList.length-1]:null;
+  const liveSession=sessions.find(s=>s.state==='waiting')||sessions.find(s=>s.state==='working')||sessions[sessions.length-1]||null;
+  if(!usageObs&&!perf&&!liveSession) return '';
+
+  const waiting=sessions.some(s=>s.state==='waiting');
+  const active=waiting||sessions.some(s=>s.state==='working');
+  const state=waiting?'waiting':active?'active':'idle';
+  const provider=(usageObs&&usageObs.provider)||(liveSession&&liveSession.provider)||'—';
+  const model=(usageObs&&usageObs.model)||(liveSession&&liveSession.model)||'—';
+  return '<div class="nx-agent-panel">'
+    +'<div class="nx-agent-head"><div class="nx-agent-title"><span class="nx-agent-dot '+(active?'active':'')+'"></span>NX Agent</div><div class="nx-agent-state">'+state+'</div></div>'
+    +'<div class="nx-agent-grid">'
+      +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(usageObs&&usageObs.input_tokens)+'</div><div class="nx-agent-label">input</div></div>'
+      +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(usageObs&&usageObs.output_tokens)+'</div><div class="nx-agent-label">output</div></div>'
+      +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(usageObs&&usageObs.requests)+'</div><div class="nx-agent-label">requests</div></div>'
+    +'</div>'
+    +'<div class="nx-agent-meta">'+esc(provider)+' · '+esc(model)+' · '+esc(nxLatency(perf&&perf.latency_ms))+'</div>'
+    +'</div>';
+}
+
+function legacyNxPanel(){
   const snap=nxAgentTelemetry;
   if(!snap||!snap.totals) return '';
   const totals=snap.totals||{};
@@ -972,11 +1007,6 @@ function nxAgentPanel(){
   }
   const provider=modelEvent&&modelEvent.provider?String(modelEvent.provider):'—';
   const model=modelEvent&&modelEvent.model?String(modelEvent.model):'—';
-  const latency=completedEvent&&Number.isFinite(Number(completedEvent.latencyMs))
-    ? (Number(completedEvent.latencyMs)>=1000
-        ? (Number(completedEvent.latencyMs)/1000).toFixed(1)+' s'
-        : Math.round(Number(completedEvent.latencyMs))+' ms')
-    : '—';
   const state=active?'active':'idle';
   return '<div class="nx-agent-panel">'
     +'<div class="nx-agent-head"><div class="nx-agent-title"><span class="nx-agent-dot '+(active?'active':'')+'"></span>NX Agent</div><div class="nx-agent-state">'+state+'</div></div>'
@@ -985,8 +1015,12 @@ function nxAgentPanel(){
       +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(totals.output_tokens)+'</div><div class="nx-agent-label">output</div></div>'
       +'<div class="nx-agent-metric"><div class="nx-agent-value">'+nxFmt(totals.tool_calls)+'</div><div class="nx-agent-label">tools</div></div>'
     +'</div>'
-    +'<div class="nx-agent-meta">'+esc(provider)+' · '+esc(model)+' · '+esc(latency)+'</div>'
+    +'<div class="nx-agent-meta">'+esc(provider)+' · '+esc(model)+' · '+esc(nxLatency(completedEvent&&completedEvent.latencyMs))+'</div>'
     +'</div>';
+}
+
+function nxAgentPanel(){
+  return normalizedNxPanel()||legacyNxPanel();
 }
 
 let hoverId='claude';
@@ -1344,9 +1378,11 @@ listen('theme',e=>applyTheme(e.payload)).catch(()=>{});
 listen('antigravity_prefs',e=>{if(e.payload){agPrefs=e.payload;renderRing();}}).catch(()=>{});
 listen('glyphs',e=>{glyphs=e.payload||glyphs;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
 listen('activity',e=>{activity=e.payload||activity;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
-listen('nx-agent-telemetry',e=>{nxAgentTelemetry=e.payload||nxAgentTelemetry;if(card.classList.contains('show'))renderCard();}).catch(()=>{});
+listen('telemetry-state',e=>{telemetryState=e.payload||telemetryState;if(card.classList.contains('show'))renderCard();}).catch(()=>{});
+listen('nx-agent-telemetry',e=>{nxAgentTelemetry=e.payload||nxAgentTelemetry;if(card.classList.contains('show')&&!telemetryState)renderCard();}).catch(()=>{});
 invoke('get_activity').then(a=>{activity=a||activity;renderRing();}).catch(()=>{});
-invoke('get_nx_agent_telemetry').then(v=>{nxAgentTelemetry=v||nxAgentTelemetry;if(card.classList.contains('show'))renderCard();}).catch(()=>{});
+invoke('get_telemetry_state').then(v=>{telemetryState=v||telemetryState;if(card.classList.contains('show'))renderCard();}).catch(()=>{});
+invoke('get_nx_agent_telemetry').then(v=>{nxAgentTelemetry=v||nxAgentTelemetry;if(card.classList.contains('show')&&!telemetryState)renderCard();}).catch(()=>{});
 invoke('get_glyphs').then(g=>{glyphs=g||glyphs;renderRing();}).catch(()=>{});
 // The edge: pushed on every placement (a drag that snapped elsewhere, or Settings), and asked for once
 // at startup in case the placement happened before this page was listening.

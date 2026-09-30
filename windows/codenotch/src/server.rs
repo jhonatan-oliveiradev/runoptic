@@ -18,6 +18,48 @@ pub fn start(app: AppHandle, port: u16) {
         for mut req in server.incoming_requests() {
             let url = req.url().to_string();
 
+            if url == "/v1/telemetry/state" {
+                if is_forbidden(&req) {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("forbidden").with_status_code(403),
+                    );
+                    continue;
+                }
+
+                if *req.method() != tiny_http::Method::Get {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("method not allowed").with_status_code(405),
+                    );
+                    continue;
+                }
+
+                let snapshot = {
+                    let state = app.state::<AppState>();
+                    let snapshot = state.telemetry.lock().unwrap().snapshot();
+                    snapshot
+                };
+                let body = serde_json::to_string(&snapshot)
+                    .unwrap_or_else(|_| r#"{"error":"serialization failed"}"#.into());
+                let response = tiny_http::Response::from_string(body)
+                    .with_status_code(200)
+                    .with_header(
+                        tiny_http::Header::from_bytes(
+                            &b"Content-Type"[..],
+                            &b"application/json; charset=utf-8"[..],
+                        )
+                        .unwrap(),
+                    )
+                    .with_header(
+                        tiny_http::Header::from_bytes(
+                            &b"Cache-Control"[..],
+                            &b"no-store"[..],
+                        )
+                        .unwrap(),
+                    );
+                let _ = req.respond(response);
+                continue;
+            }
+
             if url == "/v1/telemetry/nx-agent" {
                 if is_forbidden(&req) {
                     let _ = req.respond(
@@ -92,6 +134,7 @@ pub fn start(app: AppHandle, port: u16) {
                 };
 
                 let _ = app.emit("nx-agent-telemetry", &snapshot);
+                crate::telemetry::refresh_from_app(&app);
                 let response = tiny_http::Response::from_string(
                     r#"{"ok":true,"protocol":"nx.telemetry.v1"}"#,
                 )

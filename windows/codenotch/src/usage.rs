@@ -775,6 +775,7 @@ fn broadcast_claude_account_usage(
     let _ = app.emit("claude_accounts", &groups);
     let _ = app.emit("claude_account_usage", &accounts);
     let _ = app.emit("usage", &legacy);
+    crate::telemetry::refresh_from_app(app);
 }
 
 /// Account-aware Claude polling.

@@ -56,6 +56,12 @@ pub struct TelemetryEvent {
     pub error: Option<String>,
     #[serde(default, rename = "toolCount")]
     pub tool_count: Option<u64>,
+    /// Optional producer-supplied execution environment. Older nx.telemetry.v1 senders may omit it.
+    #[serde(default, rename = "environmentId")]
+    pub environment_id: Option<String>,
+    /// Optional evidence-backed project/repository identity.
+    #[serde(default, rename = "projectId")]
+    pub project_id: Option<String>,
 }
 
 impl TelemetryEvent {
@@ -91,6 +97,8 @@ impl TelemetryEvent {
             self.decision.as_deref(),
             self.permission.as_deref(),
             self.error.as_deref(),
+            self.environment_id.as_deref(),
+            self.project_id.as_deref(),
         ]
         .into_iter()
         .flatten()
@@ -226,6 +234,8 @@ mod tests {
             permission: None,
             error: None,
             tool_count: None,
+            environment_id: None,
+            project_id: None,
         }
     }
 
