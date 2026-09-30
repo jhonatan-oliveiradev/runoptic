@@ -1,12 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{codex, nx_agent, usage, AppState};
 
 pub const TELEMETRY_PROTOCOL: &str = "runoptic.telemetry.v1";
+pub const TELEMETRY_HISTORY_PROTOCOL: &str = "runoptic.telemetry.history.v1";
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -150,6 +154,197 @@ pub struct TelemetrySnapshot {
     pub activity: Vec<ActivityObservation>,
     pub performance: Vec<PerformanceObservation>,
     pub updated_at_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", content = "observation", rename_all = "snake_case")]
+pub enum HistoryPayload {
+    Usage(UsageObservation),
+    Session(AgentSessionObservation),
+    Activity(ActivityObservation),
+    Performance(PerformanceObservation),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TelemetryHistoryRecord {
+    pub protocol: String,
+    pub key: String,
+    pub recorded_at_ms: u64,
+    pub payload: HistoryPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TelemetryHistorySnapshot {
+    pub protocol: String,
+    pub records: Vec<TelemetryHistoryRecord>,
+}
+
+#[derive(Debug, Default)]
+struct HistoryIndex {
+    last_by_key: BTreeMap<String, String>,
+}
+
+static HISTORY_INDEX: OnceLock<Mutex<HistoryIndex>> = OnceLock::new();
+
+pub fn history_path() -> PathBuf {
+    crate::config::config_path().with_file_name("telemetry-history.jsonl")
+}
+
+fn normalize_payload_for_fingerprint(payload: &HistoryPayload) -> HistoryPayload {
+    let mut payload = payload.clone();
+    match &mut payload {
+        HistoryPayload::Usage(observation) => {
+            observation.provenance.observed_at_ms = 0;
+            for window in &mut observation.quota_windows {
+                window.provenance.observed_at_ms = 0;
+            }
+        }
+        HistoryPayload::Session(observation) => {
+            observation.provenance.observed_at_ms = 0;
+        }
+        HistoryPayload::Activity(observation) => {
+            observation.provenance.observed_at_ms = 0;
+        }
+        HistoryPayload::Performance(observation) => {
+            observation.provenance.observed_at_ms = 0;
+        }
+    }
+    payload
+}
+
+fn record_fingerprint(payload: &HistoryPayload) -> String {
+    serde_json::to_string(&normalize_payload_for_fingerprint(payload)).unwrap_or_default()
+}
+
+fn history_records_from_snapshot(snapshot: &TelemetrySnapshot) -> Vec<TelemetryHistoryRecord> {
+    let recorded_at_ms = now_ms();
+    let mut records = Vec::new();
+
+    records.extend(snapshot.usage.iter().cloned().map(|observation| {
+        let key = format!("usage:{}", usage_key(&observation));
+        TelemetryHistoryRecord {
+            protocol: TELEMETRY_HISTORY_PROTOCOL.into(),
+            key,
+            recorded_at_ms,
+            payload: HistoryPayload::Usage(observation),
+        }
+    }));
+    records.extend(snapshot.sessions.iter().cloned().map(|observation| {
+        let key = format!("session:{}", session_key(&observation));
+        TelemetryHistoryRecord {
+            protocol: TELEMETRY_HISTORY_PROTOCOL.into(),
+            key,
+            recorded_at_ms,
+            payload: HistoryPayload::Session(observation),
+        }
+    }));
+    records.extend(snapshot.activity.iter().cloned().map(|observation| {
+        let key = format!("activity:{}:{}", observation.agent, observation.id);
+        TelemetryHistoryRecord {
+            protocol: TELEMETRY_HISTORY_PROTOCOL.into(),
+            key,
+            recorded_at_ms,
+            payload: HistoryPayload::Activity(observation),
+        }
+    }));
+    records.extend(snapshot.performance.iter().cloned().map(|observation| {
+        let key = format!("performance:{}", performance_key(&observation));
+        TelemetryHistoryRecord {
+            protocol: TELEMETRY_HISTORY_PROTOCOL.into(),
+            key,
+            recorded_at_ms,
+            payload: HistoryPayload::Performance(observation),
+        }
+    }));
+
+    records
+}
+
+fn load_history_index() -> HistoryIndex {
+    let path = history_path();
+    let Ok(file) = std::fs::File::open(path) else {
+        return HistoryIndex::default();
+    };
+
+    let mut index = HistoryIndex::default();
+    for line in BufReader::new(file).lines().map_while(Result::ok) {
+        let Ok(record) = serde_json::from_str::<TelemetryHistoryRecord>(&line) else {
+            continue;
+        };
+        if record.protocol != TELEMETRY_HISTORY_PROTOCOL {
+            continue;
+        }
+        index
+            .last_by_key
+            .insert(record.key, record_fingerprint(&record.payload));
+    }
+    index
+}
+
+fn history_index() -> &'static Mutex<HistoryIndex> {
+    HISTORY_INDEX.get_or_init(|| Mutex::new(load_history_index()))
+}
+
+pub fn append_history(snapshot: &TelemetrySnapshot) -> std::io::Result<usize> {
+    let candidates = history_records_from_snapshot(snapshot);
+    if candidates.is_empty() {
+        return Ok(0);
+    }
+
+    let path = history_path();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+
+    let mut index = history_index().lock().unwrap();
+    let changed = candidates
+        .into_iter()
+        .filter_map(|record| {
+            let fingerprint = record_fingerprint(&record.payload);
+            let same = index
+                .last_by_key
+                .get(&record.key)
+                .is_some_and(|previous| previous == &fingerprint);
+            (!same).then_some((record, fingerprint))
+        })
+        .collect::<Vec<_>>();
+
+    if changed.is_empty() {
+        return Ok(0);
+    }
+
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    let mut written = 0;
+    for (record, fingerprint) in changed {
+        let line = serde_json::to_string(&record)
+            .map_err(std::io::Error::other)?;
+        writeln!(file, "{line}")?;
+        index.last_by_key.insert(record.key, fingerprint);
+        written += 1;
+    }
+    Ok(written)
+}
+
+pub fn read_history_tail(limit: usize) -> TelemetryHistorySnapshot {
+    let limit = limit.clamp(1, 500);
+    let path = history_path();
+    let records = std::fs::File::open(path)
+        .ok()
+        .map(|file| {
+            BufReader::new(file)
+                .lines()
+                .map_while(Result::ok)
+                .filter_map(|line| serde_json::from_str::<TelemetryHistoryRecord>(&line).ok())
+                .filter(|record| record.protocol == TELEMETRY_HISTORY_PROTOCOL)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    let start = records.len().saturating_sub(limit);
+    TelemetryHistorySnapshot {
+        protocol: TELEMETRY_HISTORY_PROTOCOL.into(),
+        records: records[start..].to_vec(),
+    }
 }
 
 #[derive(Debug, Default)]
@@ -569,6 +764,10 @@ pub fn refresh_from_app(app: &AppHandle) -> TelemetrySnapshot {
         telemetry.snapshot()
     };
 
+    if let Err(error) = append_history(&snapshot) {
+        eprintln!("[runoptic] telemetry history append failed: {error}");
+    }
+
     let _ = app.emit("telemetry-state", &snapshot);
     snapshot
 }
@@ -760,6 +959,48 @@ mod tests {
         assert_eq!(current.activity.len(), 1);
         assert_eq!(current.activity[0].kind, ActivityKind::QueryStarted);
         assert_eq!(current.activity[0].agent, "nx-agent");
+    }
+
+    #[test]
+    fn history_fingerprint_ignores_provenance_clock_only() {
+        let mut first = nx_event("query.started", "s1", Some("windows-native"));
+        first.id = "activity-1".into();
+        let mut collector = nx_agent::Collector::default();
+        collector.ingest(first);
+        let activity = nx_activity_observations(&collector.snapshot()).remove(0);
+
+        let mut later = activity.clone();
+        later.provenance.observed_at_ms = later.provenance.observed_at_ms.saturating_add(60_000);
+
+        assert_eq!(
+            record_fingerprint(&HistoryPayload::Activity(activity.clone())),
+            record_fingerprint(&HistoryPayload::Activity(later.clone()))
+        );
+
+        later.project_id = Some("another-project".into());
+        assert_ne!(
+            record_fingerprint(&HistoryPayload::Activity(activity)),
+            record_fingerprint(&HistoryPayload::Activity(later))
+        );
+    }
+
+    #[test]
+    fn history_records_use_stable_activity_identity() {
+        let mut collector = nx_agent::Collector::default();
+        let mut event = nx_event("tool.completed", "s1", Some("windows-native"));
+        event.id = "event-stable".into();
+        collector.ingest(event);
+
+        let mut state = TelemetryState::default();
+        state.rebuild(&[], &[], &collector.snapshot());
+        let records = history_records_from_snapshot(&state.snapshot());
+        let activity = records
+            .iter()
+            .find(|record| matches!(record.payload, HistoryPayload::Activity(_)))
+            .unwrap();
+
+        assert_eq!(activity.key, "activity:nx-agent:event-stable");
+        assert_eq!(activity.protocol, TELEMETRY_HISTORY_PROTOCOL);
     }
 
     #[test]

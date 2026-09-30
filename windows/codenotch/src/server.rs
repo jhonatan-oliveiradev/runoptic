@@ -18,6 +18,49 @@ pub fn start(app: AppHandle, port: u16) {
         for mut req in server.incoming_requests() {
             let url = req.url().to_string();
 
+            if url.starts_with("/v1/telemetry/history") {
+                if is_forbidden(&req) {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("forbidden").with_status_code(403),
+                    );
+                    continue;
+                }
+
+                if *req.method() != tiny_http::Method::Get {
+                    let _ = req.respond(
+                        tiny_http::Response::from_string("method not allowed").with_status_code(405),
+                    );
+                    continue;
+                }
+
+                let limit = query_param(&url, "limit")
+                    .parse::<usize>()
+                    .ok()
+                    .unwrap_or(100)
+                    .clamp(1, 500);
+                let history = crate::telemetry::read_history_tail(limit);
+                let body = serde_json::to_string(&history)
+                    .unwrap_or_else(|_| r#"{"error":"serialization failed"}"#.into());
+                let response = tiny_http::Response::from_string(body)
+                    .with_status_code(200)
+                    .with_header(
+                        tiny_http::Header::from_bytes(
+                            &b"Content-Type"[..],
+                            &b"application/json; charset=utf-8"[..],
+                        )
+                        .unwrap(),
+                    )
+                    .with_header(
+                        tiny_http::Header::from_bytes(
+                            &b"Cache-Control"[..],
+                            &b"no-store"[..],
+                        )
+                        .unwrap(),
+                    );
+                let _ = req.respond(response);
+                continue;
+            }
+
             if url == "/v1/telemetry/state" {
                 if is_forbidden(&req) {
                     let _ = req.respond(
