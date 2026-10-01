@@ -13,6 +13,7 @@ mod notchmenu;
 mod nx_agent;
 mod telemetry;
 mod gateway_9router;
+mod gateway_openrouter;
 mod server;
 mod state;
 mod tray;
@@ -38,7 +39,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
 pub const NOTCH_W: f64 = 360.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r31";
+pub const BUILD: &str = "r32";
 pub const NOTCH_H: f64 = 520.0; // 300 clipped the card once it held three window blocks plus the session list; 460 clipped Antigravity's two model groups once the reading was stale and an agent was working
 /// Height of the upright window. Five cells make a 504 px pill; its fillets add 38.7 px at each end
 /// and the settings orb reaches 28.5 px past the far one, so 520 cut both fillets and hid the orb.
@@ -64,6 +65,8 @@ pub struct AppState {
     pub telemetry: Mutex<telemetry::TelemetryState>,
     /// Read-only local gateway telemetry from 9router.
     pub gateway_9router: Mutex<gateway_9router::Snapshot>,
+    /// Read-only direct OpenRouter API-key usage telemetry. Credentials are never persisted.
+    pub gateway_openrouter: Mutex<gateway_openrouter::Snapshot>,
     /// Environment/profile inventory. Populated off the UI thread after startup so WSL discovery
     /// cannot delay the notch becoming visible.
     pub inventory: Mutex<Option<inventory::RuntimeInventory>>,
@@ -697,6 +700,11 @@ fn get_telemetry_state(state: tauri::State<AppState>) -> telemetry::TelemetrySna
 #[tauri::command]
 fn get_9router_telemetry(state: tauri::State<AppState>) -> gateway_9router::Snapshot {
     state.gateway_9router.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_openrouter_telemetry(state: tauri::State<AppState>) -> gateway_openrouter::Snapshot {
+    state.gateway_openrouter.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -1658,6 +1666,7 @@ fn main() {
             nx_agent: Mutex::new(Default::default()),
             telemetry: Mutex::new(Default::default()),
             gateway_9router: Mutex::new(Default::default()),
+            gateway_openrouter: Mutex::new(Default::default()),
             inventory: Mutex::new(None),
             codex_profiles: Mutex::new(Vec::new()),
             claude_profiles: Mutex::new(Vec::new()),
@@ -1687,6 +1696,7 @@ fn main() {
             get_nx_agent_telemetry,
             get_telemetry_state,
             get_9router_telemetry,
+            get_openrouter_telemetry,
             open_data_dir,
             drag_begin,
             refresh_ring,
@@ -1745,6 +1755,9 @@ fn main() {
             apply_visibility(&handle);
             server::start(handle.clone(), port);
             telemetry::refresh_from_app(&handle);
+            // Remote OpenRouter telemetry is opt-in through an inherited environment variable and
+            // does not depend on WSL/profile discovery, so it can start immediately.
+            gateway_openrouter::start(handle.clone());
 
             // WSL/profile discovery can take a moment on a machine with running distributions.
             // Keep it off the UI thread and cache one launch-time snapshot for every consumer.

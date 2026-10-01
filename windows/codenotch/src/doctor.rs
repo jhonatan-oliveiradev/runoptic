@@ -279,6 +279,7 @@ pub fn run() -> String {
         "  {}\n",
         crate::gateway_9router::probe(&environment_report.environments)
     );
+    o += &format!("  {}\n", crate::gateway_openrouter::probe());
     let history_path = crate::telemetry::history_path();
     let history = crate::telemetry::read_history_tail(5);
     o += &format!(
