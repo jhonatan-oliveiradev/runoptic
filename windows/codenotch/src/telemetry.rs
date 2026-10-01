@@ -7,7 +7,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{codex, gateway_9router, nx_agent, usage, AppState};
+use crate::{codex, gateway_9router, gateway_openrouter, nx_agent, usage, AppState};
 
 pub const TELEMETRY_PROTOCOL: &str = "runoptic.telemetry.v1";
 pub const TELEMETRY_HISTORY_PROTOCOL: &str = "runoptic.telemetry.history.v1";
@@ -406,6 +406,15 @@ impl TelemetryState {
         for observation in gateway_performance_observations(gateway) {
             self.performance
                 .insert(performance_key(&observation), observation);
+        }
+        self.updated_at_ms = now_ms();
+    }
+
+    pub fn merge_openrouter(&mut self, gateway: &gateway_openrouter::Snapshot) {
+        self.usage
+            .retain(|_, observation| observation.provenance.collector != "openrouter");
+        for observation in openrouter_usage_observations(gateway) {
+            self.usage.insert(usage_key(&observation), observation);
         }
         self.updated_at_ms = now_ms();
     }
@@ -810,6 +819,41 @@ pub fn gateway_performance_observations(
         .collect()
 }
 
+pub fn openrouter_usage_observations(
+    snapshot: &gateway_openrouter::Snapshot,
+) -> Vec<UsageObservation> {
+    if snapshot.status != "ok" {
+        return Vec::new();
+    }
+    let Some(sample) = snapshot.usage.as_ref() else {
+        return Vec::new();
+    };
+
+    vec![UsageObservation {
+        observation_id: Some(sample.observation_id.clone()),
+        provider: "openrouter".into(),
+        account_id: None,
+        environment_id: "remote:openrouter".into(),
+        model: None,
+        project_id: None,
+        input_tokens: None,
+        output_tokens: None,
+        cached_tokens: None,
+        reasoning_tokens: None,
+        requests: None,
+        // GET /api/v1/key reports per-key credit usage. The daily value is the only spend
+        // field projected into the normalized current observation; weekly/monthly totals and
+        // limits remain available on the source snapshot until the core has period-aware spend.
+        cost_usd: sample.usage_daily_usd,
+        quota_windows: Vec::new(),
+        provenance: Provenance {
+            kind: ProvenanceKind::Official,
+            collector: "openrouter".into(),
+            observed_at_ms: snapshot.fetched_at_ms,
+        },
+    }]
+}
+
 pub fn nx_performance_observations(
     snapshot: &nx_agent::Snapshot,
 ) -> Vec<PerformanceObservation> {
@@ -842,13 +886,20 @@ pub fn nx_performance_observations(
 }
 
 pub fn refresh_from_app(app: &AppHandle) -> TelemetrySnapshot {
-    let (codex_accounts, claude_accounts, nx_snapshot, gateway_snapshot) = {
+    let (codex_accounts, claude_accounts, nx_snapshot, gateway_snapshot, openrouter_snapshot) = {
         let state = app.state::<AppState>();
         let codex_accounts = state.codex_account_usage.lock().unwrap().clone();
         let claude_accounts = state.claude_account_usage.lock().unwrap().clone();
         let nx_snapshot = state.nx_agent.lock().unwrap().snapshot();
         let gateway_snapshot = state.gateway_9router.lock().unwrap().clone();
-        (codex_accounts, claude_accounts, nx_snapshot, gateway_snapshot)
+        let openrouter_snapshot = state.gateway_openrouter.lock().unwrap().clone();
+        (
+            codex_accounts,
+            claude_accounts,
+            nx_snapshot,
+            gateway_snapshot,
+            openrouter_snapshot,
+        )
     };
 
     let snapshot = {
@@ -856,6 +907,7 @@ pub fn refresh_from_app(app: &AppHandle) -> TelemetrySnapshot {
         let mut telemetry = state.telemetry.lock().unwrap();
         telemetry.rebuild(&codex_accounts, &claude_accounts, &nx_snapshot);
         telemetry.merge_gateway(&gateway_snapshot);
+        telemetry.merge_openrouter(&openrouter_snapshot);
         telemetry.snapshot()
     };
 
