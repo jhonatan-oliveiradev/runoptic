@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RunOptic Gateway Notch Preview</title>
+<style>
+:root{--accent:#A7F432;--bg:#0B0D10;--surface:#11161C;--text:#F4F7F8;--muted:#7F8995;--line:#242A32;--sep:#202832;--track:#20272F;--watch:#F6B84A}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#090B0E;color:var(--text);font-family:"Segoe UI",system-ui,sans-serif}
+body{display:grid;place-items:center;padding:32px}
+.preview{display:flex;align-items:center;gap:28px}
+.pill{width:70px;padding:18px 0;border:1px solid var(--line);border-radius:30px;background:var(--bg);display:flex;flex-direction:column;align-items:center;gap:14px}
+.ring{width:56px;height:56px;border-radius:50%;border:5px solid var(--track);position:relative;display:grid;place-items:center}
+.ring::before{content:"";position:absolute;inset:-5px;border-radius:50%;border:5px solid transparent;border-top-color:var(--accent);border-right-color:var(--accent);transform:rotate(-35deg)}
+.ring span{font-size:12px;font-weight:700}
+.card{width:246px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 18px 46px rgba(0,0,0,.36)}
+.head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.head strong{font-size:14px}
+.sub{font-size:11px;color:var(--muted);margin-bottom:10px}
+.win{margin-top:10px}
+.row{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+.label{font-weight:600}.reset{font-size:11px;color:var(--muted)}
+.track{height:5px;border-radius:3px;background:var(--track);margin:6px 0 4px;overflow:hidden}
+.fill{height:100%;background:var(--watch);width:64%}
+.used{font-size:11px;color:var(--muted)}
+.gateway{margin-top:10px;padding-top:9px;border-top:1px solid var(--sep)}
+.g-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.g-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(167,244,50,.10)}
+.state{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.metric{background:#0E1318;border:1px solid var(--sep);border-radius:9px;padding:7px 8px;min-width:0}
+.value{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.mlabel{font-size:9px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+.meta{font-size:10px;color:#A8B0BA;line-height:1.45;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toolbar{position:fixed;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+button{font:inherit;color:var(--text);background:#151B21;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer}
+button.active{border-color:rgba(167,244,50,.35);background:rgba(167,244,50,.08)}
+.note{position:fixed;bottom:16px;color:var(--muted);font-size:12px}
+.extra{display:none;margin-top:10px;border-top:1px solid var(--sep);padding-top:8px}
+.extra.show{display:block}
+.session{font-size:11px;color:#A8B0BA;padding:3px 0}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button id="codex" class="active">Codex card</button>
+  <button id="claude">Claude tall card</button>
+</div>
+<div class="preview">
+  <div class="card">
+    <div class="head"><strong id="title">Codex Usage</strong></div>
+    <div class="sub">Updated just now</div>
+    <div class="win">
+      <div class="row"><span class="label">Weekly limit</span><span class="reset">Resets Sat 15:43</span></div>
+      <div class="track"><div class="fill"></div></div>
+      <div class="used">64% Used · 36% left</div>
+    </div>
+    <div class="extra" id="extra">
+      <div class="session">● Session 1 · working</div>
+      <div class="session">● Session 2 · waiting</div>
+      <div class="session">● Session 3 · working</div>
+      <div class="session">and 2 more</div>
+    </div>
+    <div class="gateway">
+      <div class="g-head"><div class="g-title"><span class="dot"></span>9router</div><div class="state">live</div></div>
+      <div class="grid">
+        <div class="metric"><div class="value">5</div><div class="mlabel">requests today</div></div>
+        <div class="metric"><div class="value">$0.0877</div><div class="mlabel">cost today</div></div>
+      </div>
+      <div class="meta">codex · gpt-5.6-luna</div>
+      <div class="meta">134K in · 149 out · 52K cached</div>
+      <div class="meta">4.7 s latency · 3.9 s TTFT</div>
+    </div>
+  </div>
+  <div class="pill"><div class="ring"><span>64%</span></div><div class="ring"><span>16%</span></div></div>
+</div>
+<div class="note">Browser-only visual harness. It does not start RunOptic or load any credentials.</div>
+<script>
+const codex=document.getElementById('codex'),claude=document.getElementById('claude'),extra=document.getElementById('extra'),title=document.getElementById('title');
+function mode(which){
+  const tall=which==='claude';
+  codex.classList.toggle('active',!tall); claude.classList.toggle('active',tall);
+  extra.classList.toggle('show',tall);
+  title.textContent=tall?'Claude Usage':'Codex Usage';
+}
+codex.onclick=()=>mode('codex'); claude.onclick=()=>mode('claude');
+</script>
+</body>
+</html>
