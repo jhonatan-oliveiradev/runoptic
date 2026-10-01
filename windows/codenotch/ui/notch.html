@@ -117,6 +117,16 @@
   .nx-agent-value{font-size:12px;font-weight:700;color:#F4F7F8;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .nx-agent-label{font-size:9px;color:#7F8995;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
   .nx-agent-meta{font-size:10px;color:#A8B0BA;line-height:1.45;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gateway-panel{margin-top:10px;padding-top:9px;border-top:1px solid #202832}
+  .gateway-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+  .gateway-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#F4F7F8}
+  .gateway-dot{width:7px;height:7px;border-radius:50%;background:var(--ro-accent,#A7F432);box-shadow:0 0 0 3px rgba(167,244,50,.10)}
+  .gateway-state{font-size:9px;color:#7F8995;text-transform:uppercase;letter-spacing:.08em}
+  .gateway-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .gateway-metric{background:#0E1318;border:1px solid #202832;border-radius:9px;padding:7px 8px;min-width:0}
+  .gateway-value{font-size:12px;font-weight:700;color:#F4F7F8;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gateway-label{font-size:9px;color:#7F8995;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+  .gateway-meta{font-size:10px;color:#A8B0BA;line-height:1.45;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:#A8B0BA;padding:2px 0}
   .s-dot{width:6px;height:6px;border-radius:3px;flex:0 0 auto}
   .s-more{font-size:11px;color:#7F8995;padding:2px 0}
@@ -1023,6 +1033,76 @@ function nxAgentPanel(){
   return normalizedNxPanel()||legacyNxPanel();
 }
 
+function gatewaySum(rows,key){
+  let total=0,known=false;
+  for(const row of rows){
+    if(!row||row[key]==null) continue;
+    const value=Number(row[key]);
+    if(!Number.isFinite(value)) continue;
+    total+=value;
+    known=true;
+  }
+  return known?total:null;
+}
+function gatewayAverage(rows,key){
+  const values=[];
+  for(const row of rows){
+    if(!row||row[key]==null) continue;
+    const value=Number(row[key]);
+    if(Number.isFinite(value)) values.push(value);
+  }
+  return values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
+}
+function gatewayCost(value){
+  if(value==null||!Number.isFinite(Number(value))) return '—';
+  const v=Number(value);
+  if(v===0) return '$0.00';
+  return '$'+v.toFixed(Math.abs(v)<1?4:2);
+}
+function normalizedGatewayPanel(){
+  const snap=telemetryState;
+  if(!snap||snap.protocol!=='runoptic.telemetry.v1') return '';
+  const usageList=Array.isArray(snap.usage)?snap.usage.filter(u=>u&&u.provenance&&u.provenance.collector==='9router'):[];
+  const perfList=Array.isArray(snap.performance)?snap.performance.filter(p=>p&&p.provenance&&p.provenance.collector==='9router'):[];
+  if(!usageList.length&&!perfList.length) return '';
+
+  const ranked=usageList.slice().sort((a,b)=>{
+    const ar=Number.isFinite(Number(a&&a.requests))?Number(a.requests):-1;
+    const br=Number.isFinite(Number(b&&b.requests))?Number(b.requests):-1;
+    return br-ar;
+  });
+  const route=ranked[0]||null;
+  const provider=route&&route.provider?String(route.provider):'9router';
+  const model=route&&route.model?String(route.model):'—';
+  const requests=gatewaySum(usageList,'requests');
+  const cost=gatewaySum(usageList,'cost_usd');
+  const input=gatewaySum(usageList,'input_tokens');
+  const output=gatewaySum(usageList,'output_tokens');
+  const cached=gatewaySum(usageList,'cached_tokens');
+  const latency=gatewayAverage(perfList,'latency_ms');
+  const ttft=gatewayAverage(perfList,'ttft_ms');
+
+  const tokenParts=[];
+  if(input!=null) tokenParts.push(nxFmt(input)+' in');
+  if(output!=null) tokenParts.push(nxFmt(output)+' out');
+  if(cached!=null) tokenParts.push(nxFmt(cached)+' cached');
+
+  const perfParts=[];
+  if(latency!=null) perfParts.push(nxLatency(latency)+' latency');
+  if(ttft!=null) perfParts.push(nxLatency(ttft)+' TTFT');
+
+  return '<div class="gateway-panel">'
+    +'<div class="gateway-head"><div class="gateway-title"><span class="gateway-dot"></span>9router</div><div class="gateway-state">live</div></div>'
+    +'<div class="gateway-grid">'
+      +'<div class="gateway-metric"><div class="gateway-value">'+nxFmt(requests)+'</div><div class="gateway-label">requests today</div></div>'
+      +'<div class="gateway-metric"><div class="gateway-value">'+gatewayCost(cost)+'</div><div class="gateway-label">cost today</div></div>'
+    +'</div>'
+    +'<div class="gateway-meta">'+esc(provider)+' · '+esc(model)+'</div>'
+    +(tokenParts.length?'<div class="gateway-meta">'+esc(tokenParts.join(' · '))+'</div>':'')
+    +(perfParts.length?'<div class="gateway-meta">'+esc(perfParts.join(' · '))+'</div>':'')
+    +'</div>';
+}
+
 let hoverId='claude';
 function renderCard(){
   const c=document.getElementById('card');
@@ -1081,6 +1161,7 @@ function renderCard(){
     }
   }
   html+=nxAgentPanel();
+  html+=normalizedGatewayPanel();
   c.innerHTML=html;
   placeCard();
 }
