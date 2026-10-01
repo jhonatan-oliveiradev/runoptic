@@ -1207,6 +1207,41 @@ mod tests {
     }
 
     #[test]
+    fn openrouter_adapter_maps_official_daily_spend_without_inventing_usage_fields() {
+        let snapshot = gateway_openrouter::Snapshot {
+            status: "ok".into(),
+            fetched_at_ms: 789,
+            usage: Some(gateway_openrouter::KeyUsage {
+                observation_id: "openrouter:key:today".into(),
+                usage_daily_usd: Some(1.25),
+                usage_weekly_usd: Some(4.5),
+                usage_monthly_usd: Some(12.0),
+                limit_usd: Some(100.0),
+                limit_remaining_usd: Some(74.5),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let observations = openrouter_usage_observations(&snapshot);
+        assert_eq!(observations.len(), 1);
+        let observation = &observations[0];
+        assert_eq!(
+            observation.observation_id.as_deref(),
+            Some("openrouter:key:today")
+        );
+        assert_eq!(observation.provider, "openrouter");
+        assert_eq!(observation.environment_id, "remote:openrouter");
+        assert_eq!(observation.cost_usd, Some(1.25));
+        assert_eq!(observation.requests, None);
+        assert_eq!(observation.input_tokens, None);
+        assert_eq!(observation.output_tokens, None);
+        assert!(observation.quota_windows.is_empty());
+        assert_eq!(observation.provenance.kind, ProvenanceKind::Official);
+        assert_eq!(observation.provenance.collector, "openrouter");
+    }
+
+    #[test]
     fn current_state_never_collapses_identical_session_ids_across_environments() {
         let snapshot = nx_agent::Snapshot {
             protocol: "nx.telemetry.v1",
