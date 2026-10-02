@@ -106,6 +106,7 @@ pub struct AgentSessionObservation {
 #[serde(rename_all = "snake_case")]
 pub enum ActivityKind {
     QueryStarted,
+    QueryNeedsInput,
     ModelCompleted,
     ToolCompleted,
     QueryCompleted,
@@ -694,6 +695,7 @@ pub fn nx_session_observations(snapshot: &nx_agent::Snapshot) -> Vec<AgentSessio
         .map(|event| {
             let state = match event.event_type.as_str() {
                 "query.completed" => AgentState::Done,
+                "query.needs_input" => AgentState::Waiting,
                 "query.started" | "model.completed" | "tool.completed" => AgentState::Working,
                 _ => AgentState::Idle,
             };
@@ -706,7 +708,10 @@ pub fn nx_session_observations(snapshot: &nx_agent::Snapshot) -> Vec<AgentSessio
                 model: event.model.clone(),
                 state,
                 state_since_ms: None,
-                attention_reason: event.error.clone(),
+                attention_reason: event
+                    .attention_reason
+                    .clone()
+                    .or_else(|| event.error.clone()),
                 provenance: Provenance {
                     kind: ProvenanceKind::LocalObservation,
                     collector: "nx-agent".into(),
@@ -724,6 +729,7 @@ pub fn nx_activity_observations(snapshot: &nx_agent::Snapshot) -> Vec<ActivityOb
         .filter_map(|event| {
             let kind = match event.event_type.as_str() {
                 "query.started" => ActivityKind::QueryStarted,
+                "query.needs_input" => ActivityKind::QueryNeedsInput,
                 "model.completed" => ActivityKind::ModelCompleted,
                 "tool.completed" => ActivityKind::ToolCompleted,
                 "query.completed" => ActivityKind::QueryCompleted,
