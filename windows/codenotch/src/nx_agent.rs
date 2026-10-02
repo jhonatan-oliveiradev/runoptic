@@ -233,6 +233,7 @@ mod tests {
             decision: None,
             permission: None,
             error: None,
+            attention_reason: None,
             tool_count: None,
             environment_id: None,
             project_id: None,
@@ -249,6 +250,14 @@ mod tests {
         invalid.event_type = "query.started".into();
         invalid.protocol = "other".into();
         assert_eq!(invalid.validate(), Err("unsupported protocol"));
+    }
+
+    #[test]
+    fn accepts_needs_input_with_attention_reason() {
+        let mut waiting = event("query.needs_input");
+        waiting.attention_reason = Some("Which project should I use?".into());
+
+        assert!(waiting.validate().is_ok());
     }
 
     #[test]
