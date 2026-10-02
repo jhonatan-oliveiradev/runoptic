@@ -1018,10 +1018,28 @@ mod tests {
             decision: None,
             permission: None,
             error: None,
+            attention_reason: None,
             tool_count: None,
             environment_id: environment.map(str::to_string),
             project_id: Some("runoptic".into()),
         }
+    }
+
+    #[test]
+    fn nx_needs_input_maps_to_waiting_session_with_reason() {
+        let mut collector = nx_agent::Collector::default();
+        let mut event = nx_event("query.needs_input", "s1", Some("windows-native"));
+        event.attention_reason = Some("Which project should I use?".into());
+        collector.ingest(event);
+
+        let sessions = nx_session_observations(&collector.snapshot());
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].state, AgentState::Waiting);
+        assert_eq!(
+            sessions[0].attention_reason.as_deref(),
+            Some("Which project should I use?")
+        );
     }
 
     #[test]
