@@ -54,6 +54,8 @@ pub struct TelemetryEvent {
     pub permission: Option<String>,
     #[serde(default)]
     pub error: Option<String>,
+    #[serde(default, rename = "attentionReason")]
+    pub attention_reason: Option<String>,
     #[serde(default, rename = "toolCount")]
     pub tool_count: Option<u64>,
     /// Optional producer-supplied execution environment. Older nx.telemetry.v1 senders may omit it.
@@ -83,7 +85,11 @@ impl TelemetryEvent {
         }
         if !matches!(
             self.event_type.as_str(),
-            "query.started" | "model.completed" | "tool.completed" | "query.completed"
+            "query.started"
+                | "query.needs_input"
+                | "model.completed"
+                | "tool.completed"
+                | "query.completed"
         ) {
             return Err("unsupported event type");
         }
@@ -97,6 +103,7 @@ impl TelemetryEvent {
             self.decision.as_deref(),
             self.permission.as_deref(),
             self.error.as_deref(),
+            self.attention_reason.as_deref(),
             self.environment_id.as_deref(),
             self.project_id.as_deref(),
         ]
@@ -233,6 +240,7 @@ mod tests {
             decision: None,
             permission: None,
             error: None,
+            attention_reason: None,
             tool_count: None,
             environment_id: None,
             project_id: None,
@@ -249,6 +257,14 @@ mod tests {
         invalid.event_type = "query.started".into();
         invalid.protocol = "other".into();
         assert_eq!(invalid.validate(), Err("unsupported protocol"));
+    }
+
+    #[test]
+    fn accepts_needs_input_with_attention_reason() {
+        let mut waiting = event("query.needs_input");
+        waiting.attention_reason = Some("Which project should I use?".into());
+
+        assert!(waiting.validate().is_ok());
     }
 
     #[test]

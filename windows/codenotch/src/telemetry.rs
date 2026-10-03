@@ -106,6 +106,7 @@ pub struct AgentSessionObservation {
 #[serde(rename_all = "snake_case")]
 pub enum ActivityKind {
     QueryStarted,
+    QueryNeedsInput,
     ModelCompleted,
     ToolCompleted,
     QueryCompleted,
@@ -694,6 +695,7 @@ pub fn nx_session_observations(snapshot: &nx_agent::Snapshot) -> Vec<AgentSessio
         .map(|event| {
             let state = match event.event_type.as_str() {
                 "query.completed" => AgentState::Done,
+                "query.needs_input" => AgentState::Waiting,
                 "query.started" | "model.completed" | "tool.completed" => AgentState::Working,
                 _ => AgentState::Idle,
             };
@@ -706,7 +708,10 @@ pub fn nx_session_observations(snapshot: &nx_agent::Snapshot) -> Vec<AgentSessio
                 model: event.model.clone(),
                 state,
                 state_since_ms: None,
-                attention_reason: event.error.clone(),
+                attention_reason: event
+                    .attention_reason
+                    .clone()
+                    .or_else(|| event.error.clone()),
                 provenance: Provenance {
                     kind: ProvenanceKind::LocalObservation,
                     collector: "nx-agent".into(),
@@ -724,6 +729,7 @@ pub fn nx_activity_observations(snapshot: &nx_agent::Snapshot) -> Vec<ActivityOb
         .filter_map(|event| {
             let kind = match event.event_type.as_str() {
                 "query.started" => ActivityKind::QueryStarted,
+                "query.needs_input" => ActivityKind::QueryNeedsInput,
                 "model.completed" => ActivityKind::ModelCompleted,
                 "tool.completed" => ActivityKind::ToolCompleted,
                 "query.completed" => ActivityKind::QueryCompleted,
@@ -1018,10 +1024,28 @@ mod tests {
             decision: None,
             permission: None,
             error: None,
+            attention_reason: None,
             tool_count: None,
             environment_id: environment.map(str::to_string),
             project_id: Some("runoptic".into()),
         }
+    }
+
+    #[test]
+    fn nx_needs_input_maps_to_waiting_session_with_reason() {
+        let mut collector = nx_agent::Collector::default();
+        let mut event = nx_event("query.needs_input", "s1", Some("windows-native"));
+        event.attention_reason = Some("Which project should I use?".into());
+        collector.ingest(event);
+
+        let sessions = nx_session_observations(&collector.snapshot());
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].state, AgentState::Waiting);
+        assert_eq!(
+            sessions[0].attention_reason.as_deref(),
+            Some("Which project should I use?")
+        );
     }
 
     #[test]
